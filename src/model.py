@@ -57,10 +57,12 @@ class HeatmapRegressor(nn.Module):
         # Up1: 16x12 -> 32x24, cat with encoder3 (1024ch)
         self.up1 = nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True)
         self.dec1 = ConvBlock(2048 + 1024, 256)
+        self.drop1 = nn.Dropout2d(0.15)
 
         # Up2: 32x24 -> 64x48, cat with encoder2 (512ch)
         self.up2 = nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True)
         self.dec2 = ConvBlock(256 + 512, 128)
+        self.drop2 = nn.Dropout2d(0.15)
 
         # Up3: 64x48 -> 128x96, cat with encoder1 (256ch)
         self.up3 = nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True)
@@ -80,11 +82,11 @@ class HeatmapRegressor(nn.Module):
         # Decoder
         d1 = self.up1(e4)                    # (B, 2048, 24, 32)
         d1 = torch.cat([d1, e3], dim=1)      # (B, 3072, 24, 32)
-        d1 = self.dec1(d1)                    # (B, 256, 24, 32)
+        d1 = self.drop1(self.dec1(d1))        # (B, 256, 24, 32)
 
         d2 = self.up2(d1)                     # (B, 256, 48, 64)
         d2 = torch.cat([d2, e2], dim=1)       # (B, 768, 48, 64)
-        d2 = self.dec2(d2)                     # (B, 128, 48, 64)
+        d2 = self.drop2(self.dec2(d2))        # (B, 128, 48, 64)
 
         d3 = self.up3(d2)                     # (B, 128, 96, 128)
         d3 = torch.cat([d3, e1], dim=1)       # (B, 384, 96, 128)

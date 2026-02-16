@@ -16,11 +16,12 @@ model:
   output_activation: "sigmoid"
 
 heatmap:
-  sigma: 6.0
+  sigma: 4.0
 
 loss:
   type: "weighted_mse"
   alpha: 5.0  # weight factor for weighted MSE
+  jsd_weight: 1.0  # JS divergence weight for sharper peaks
 
 training:
   batch_size: 8

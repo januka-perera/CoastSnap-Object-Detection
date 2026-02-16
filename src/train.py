@@ -48,6 +48,61 @@ def weighted_mse_loss(
     return loss
 
 
+def js_divergence_loss(
+    pred: torch.Tensor,
+    target: torch.Tensor,
+    visibility: torch.Tensor,
+) -> torch.Tensor:
+    """Jensen-Shannon divergence treating heatmaps as probability distributions.
+
+    Encourages the predicted heatmap to have the same shape/sharpness as the GT.
+
+    Args:
+        pred: (B, N, H, W) predicted heatmaps.
+        target: (B, N, H, W) ground-truth heatmaps.
+        visibility: (B, N) boolean mask for visible landmarks.
+
+    Returns:
+        Scalar loss.
+    """
+    B, N, H, W = pred.shape
+    eps = 1e-8
+
+    # Normalize to probability distributions per landmark
+    pred_flat = pred.view(B, N, -1)
+    target_flat = target.view(B, N, -1)
+
+    pred_dist = pred_flat / (pred_flat.sum(dim=-1, keepdim=True) + eps)
+    target_dist = target_flat / (target_flat.sum(dim=-1, keepdim=True) + eps)
+
+    # JS divergence = 0.5 * KL(P||M) + 0.5 * KL(Q||M) where M = 0.5*(P+Q)
+    m = 0.5 * (pred_dist + target_dist)
+    kl_pm = (pred_dist * (torch.log(pred_dist + eps) - torch.log(m + eps))).sum(dim=-1)
+    kl_qm = (target_dist * (torch.log(target_dist + eps) - torch.log(m + eps))).sum(dim=-1)
+    jsd = 0.5 * kl_pm + 0.5 * kl_qm  # (B, N)
+
+    vis_mask = visibility.float()
+    num_visible = vis_mask.sum().clamp(min=1.0)
+    loss = (jsd * vis_mask).sum() / num_visible
+    return loss
+
+
+def combined_loss(
+    pred: torch.Tensor,
+    target: torch.Tensor,
+    visibility: torch.Tensor,
+    alpha: float = 5.0,
+    jsd_weight: float = 1.0,
+) -> torch.Tensor:
+    """Combined weighted MSE + JS divergence loss.
+
+    MSE drives the values toward the target, JSD drives the shape/sharpness.
+    """
+    mse = weighted_mse_loss(pred, target, visibility, alpha)
+    jsd = js_divergence_loss(pred, target, visibility)
+    return mse + jsd_weight * jsd
+
+
 def compute_euclidean_error(
     pred_coords: torch.Tensor,
     gt_coords: torch.Tensor,
@@ -169,6 +224,7 @@ def train(config_path: str = "configs/config.yaml"):
     decoder_lr = cfg["training"]["decoder_lr"]
     weight_decay = cfg["training"]["weight_decay"]
     alpha = cfg["loss"]["alpha"]
+    jsd_weight = cfg["loss"].get("jsd_weight", 0.0)
     use_amp = cfg["training"]["use_mixed_precision"] and device.type == "cuda"
 
     # Start with frozen encoder
@@ -232,7 +288,10 @@ def train(config_path: str = "configs/config.yaml"):
 
             with torch.amp.autocast("cuda", enabled=use_amp):
                 heatmaps_pred = model(images)
-                loss = weighted_mse_loss(heatmaps_pred, heatmaps_gt, visibility, alpha)
+                if jsd_weight > 0:
+                    loss = combined_loss(heatmaps_pred, heatmaps_gt, visibility, alpha, jsd_weight)
+                else:
+                    loss = weighted_mse_loss(heatmaps_pred, heatmaps_gt, visibility, alpha)
 
             scaler.scale(loss).backward()
             scaler.step(optimizer)
@@ -260,7 +319,10 @@ def train(config_path: str = "configs/config.yaml"):
 
                 with torch.amp.autocast("cuda", enabled=use_amp):
                     heatmaps_pred = model(images)
-                    loss = weighted_mse_loss(heatmaps_pred, heatmaps_gt, visibility, alpha)
+                    if jsd_weight > 0:
+                        loss = combined_loss(heatmaps_pred, heatmaps_gt, visibility, alpha, jsd_weight)
+                    else:
+                        loss = weighted_mse_loss(heatmaps_pred, heatmaps_gt, visibility, alpha)
 
                 pred_coords = soft_argmax_coordinates(heatmaps_pred)
                 error = compute_euclidean_error(
