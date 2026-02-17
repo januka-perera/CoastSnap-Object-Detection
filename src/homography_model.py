@@ -34,11 +34,9 @@ class HomographyNet(nn.Module):
 
         # Load pretrained backbone
         if backbone == "resnet18":
-            weights = models.ResNet18_Weights.DEFAULT if pretrained else None
-            resnet = models.resnet18(weights=weights)
+            resnet = models.resnet18(pretrained=pretrained)
         else:
-            weights = models.ResNet50_Weights.DEFAULT if pretrained else None
-            resnet = models.resnet50(weights=weights)
+            resnet = models.resnet50(pretrained=pretrained)
 
         # Modify first conv: 3-channel -> 2-channel
         old_conv = resnet.conv1

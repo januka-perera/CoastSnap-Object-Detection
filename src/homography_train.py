@@ -161,7 +161,7 @@ def train_stage1(config_path: str = "configs/config.yaml"):
         optimizer, mode="min", factor=0.5, patience=10,
     )
 
-    scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
+    scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
 
     best_val_loss = float("inf")
     patience_counter = 0
@@ -192,7 +192,7 @@ def train_stage1(config_path: str = "configs/config.yaml"):
 
             optimizer.zero_grad()
 
-            with torch.amp.autocast("cuda", enabled=use_amp):
+            with torch.cuda.amp.autocast(enabled=use_amp):
                 pred = model(inputs)
                 loss = masked_l1_loss(pred, gt_four_point)
 
@@ -216,7 +216,7 @@ def train_stage1(config_path: str = "configs/config.yaml"):
                 inputs = batch["input"].to(device)
                 gt_four_point = batch["four_point"].to(device)
 
-                with torch.amp.autocast("cuda", enabled=use_amp):
+                with torch.cuda.amp.autocast(enabled=use_amp):
                     pred = model(inputs)
                     loss = masked_l1_loss(pred, gt_four_point)
 
@@ -326,7 +326,7 @@ def train_stage2(config_path: str = "configs/config.yaml"):
     )
 
     use_amp = device.type == "cuda"
-    scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
+    scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
 
     # Cache reference tensor
     ref_np = real_dataset.reference  # (H, W) float32
@@ -348,7 +348,7 @@ def train_stage2(config_path: str = "configs/config.yaml"):
 
             optimizer.zero_grad()
 
-            with torch.amp.autocast("cuda", enabled=use_amp):
+            with torch.cuda.amp.autocast(enabled=use_amp):
                 pred_four_point = model(inputs)
 
                 # Warp each target by predicted H
