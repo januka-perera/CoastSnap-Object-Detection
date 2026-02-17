@@ -246,6 +246,7 @@ def train(config_path: str = "configs/config.yaml"):
     model = HeatmapRegressor(
         num_landmarks=cfg["data"]["num_landmarks"],
         pretrained=cfg["model"]["pretrained"],
+        backbone=cfg["model"]["backbone"],
     ).to(device)
 
     # Training config
