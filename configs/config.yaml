@@ -57,7 +57,34 @@ augmentation:
 
 inference:
   soft_argmax: true
-  local_window_size: 11  # window around argmax peak for soft-argmax
+  local_window_size: 11  # window around center-of-mass for local soft-argmax
+
+refinement:
+  enabled: true
+  reference_image: "data/images/1577820840.Wed.Jan.01_05_34_00.AEST.2020.manly.snap.CherylWhite.jpg"
+  reference_mat: "1577820840.Wed.Jan.01_05_34_00.AEST.2020.manly.plan.CherylWhite.mat"
+  template_size: 128
+  search_size: 512
+  subpixel: true
+  grayscale: true
+  min_confidence: 0.3
+
+homography:
+  reference_image: "data/images/1577820840.Wed.Jan.01_05_34_00.AEST.2020.manly.snap.CherylWhite.jpg"
+  reference_mat: "1577820840.Wed.Jan.01_05_34_00.AEST.2020.manly.plan.CherylWhite.mat"
+  mask_path: "data/masks/manly_static_mask.png"
+  model:
+    backbone: "resnet18"
+    dropout: 0.5
+  working_width: 512
+  working_height: 384
+  synthetic:
+    max_displacement: 32.0
+    samples_per_epoch: 10000
+    batch_size: 8
+    epochs: 200
+  output:
+    checkpoint_dir: "checkpoints/homography"
 
 output:
   checkpoint_dir: "checkpoints"
