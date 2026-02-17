@@ -87,20 +87,51 @@ def js_divergence_loss(
     return loss
 
 
+def coordinate_regression_loss(
+    pred_heatmaps: torch.Tensor,
+    gt_coords: torch.Tensor,
+    visibility: torch.Tensor,
+) -> torch.Tensor:
+    """Coordinate regression loss via differentiable soft-argmax.
+
+    Directly penalizes wrong peak locations by backpropagating through
+    the soft-argmax coordinate extraction. This is the key loss that
+    teaches the model WHERE to place heatmap peaks.
+
+    Args:
+        pred_heatmaps: (B, N, H, W) predicted heatmaps.
+        gt_coords: (B, N, 2) normalised GT coordinates in [0, 1].
+        visibility: (B, N) boolean mask for visible landmarks.
+
+    Returns:
+        Scalar loss (mean squared error on normalised coordinates).
+    """
+    pred_coords = soft_argmax_coordinates(pred_heatmaps)  # (B, N, 2)
+    sq_diff = (pred_coords - gt_coords) ** 2  # (B, N, 2)
+    sq_dist = sq_diff.sum(dim=-1)  # (B, N)
+
+    vis_mask = visibility.float()
+    num_visible = vis_mask.sum().clamp(min=1.0)
+    loss = (sq_dist * vis_mask).sum() / num_visible
+    return loss
+
+
 def combined_loss(
-    pred: torch.Tensor,
-    target: torch.Tensor,
+    pred_heatmaps: torch.Tensor,
+    target_heatmaps: torch.Tensor,
+    gt_coords: torch.Tensor,
     visibility: torch.Tensor,
     alpha: float = 5.0,
-    jsd_weight: float = 1.0,
+    coord_weight: float = 5.0,
 ) -> torch.Tensor:
-    """Combined weighted MSE + JS divergence loss.
+    """Combined heatmap MSE + coordinate regression loss.
 
-    MSE drives the values toward the target, JSD drives the shape/sharpness.
+    Heatmap MSE teaches the model the right heatmap shape.
+    Coordinate loss teaches the model WHERE to place the peaks.
     """
-    mse = weighted_mse_loss(pred, target, visibility, alpha)
-    jsd = js_divergence_loss(pred, target, visibility)
-    return mse + jsd_weight * jsd
+    heatmap_loss = weighted_mse_loss(pred_heatmaps, target_heatmaps, visibility, alpha)
+    coord_loss = coordinate_regression_loss(pred_heatmaps, gt_coords, visibility)
+    return heatmap_loss + coord_weight * coord_loss
 
 
 def compute_euclidean_error(
@@ -224,7 +255,7 @@ def train(config_path: str = "configs/config.yaml"):
     decoder_lr = cfg["training"]["decoder_lr"]
     weight_decay = cfg["training"]["weight_decay"]
     alpha = cfg["loss"]["alpha"]
-    jsd_weight = cfg["loss"].get("jsd_weight", 0.0)
+    coord_weight = cfg["loss"].get("coord_weight", 5.0)
     use_amp = cfg["training"]["use_mixed_precision"] and device.type == "cuda"
 
     # Start with frozen encoder
@@ -283,15 +314,16 @@ def train(config_path: str = "configs/config.yaml"):
             images = batch["image"].to(device)
             heatmaps_gt = batch["heatmaps"].to(device)
             visibility = batch["visibility"].to(device)
+            keypoints_gt = batch["keypoints"].to(device)
 
             optimizer.zero_grad()
 
             with torch.amp.autocast("cuda", enabled=use_amp):
                 heatmaps_pred = model(images)
-                if jsd_weight > 0:
-                    loss = combined_loss(heatmaps_pred, heatmaps_gt, visibility, alpha, jsd_weight)
-                else:
-                    loss = weighted_mse_loss(heatmaps_pred, heatmaps_gt, visibility, alpha)
+                loss = combined_loss(
+                    heatmaps_pred, heatmaps_gt, keypoints_gt,
+                    visibility, alpha, coord_weight,
+                )
 
             scaler.scale(loss).backward()
             scaler.step(optimizer)
@@ -319,10 +351,10 @@ def train(config_path: str = "configs/config.yaml"):
 
                 with torch.amp.autocast("cuda", enabled=use_amp):
                     heatmaps_pred = model(images)
-                    if jsd_weight > 0:
-                        loss = combined_loss(heatmaps_pred, heatmaps_gt, visibility, alpha, jsd_weight)
-                    else:
-                        loss = weighted_mse_loss(heatmaps_pred, heatmaps_gt, visibility, alpha)
+                    loss = combined_loss(
+                        heatmaps_pred, heatmaps_gt, keypoints_gt,
+                        visibility, alpha, coord_weight,
+                    )
 
                 pred_coords = soft_argmax_coordinates(heatmaps_pred)
                 error = compute_euclidean_error(

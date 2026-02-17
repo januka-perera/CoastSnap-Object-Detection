@@ -21,7 +21,7 @@ heatmap:
 loss:
   type: "weighted_mse"
   alpha: 5.0  # weight factor for weighted MSE
-  jsd_weight: 1.0  # JS divergence weight for sharper peaks
+  coord_weight: 5.0  # coordinate regression loss weight
 
 training:
   batch_size: 8
