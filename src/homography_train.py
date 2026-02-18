@@ -481,7 +481,8 @@ def train_stage2(config_path: str = "configs/config.yaml"):
         weight_decay=1e-4,
     )
 
-    use_amp = device.type == "cuda"
+    # Disable AMP for Stage 2 — half-precision causes NaN in matrix inverse/solve
+    use_amp = False
     scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
 
     # Cache reference tensor
@@ -513,13 +514,18 @@ def train_stage2(config_path: str = "configs/config.yaml"):
                 warped_tensor = _differentiable_warp(target_images, H_batch)
 
                 ref_batch = ref_tensor.expand(B, -1, -1, -1)
-                loss = masked_photometric_loss(warped_tensor, ref_batch, mask)
+                loss = masked_photometric_loss(warped_tensor, ref_batch, mask, ssim_weight=0.2)
 
             scaler.scale(loss).backward()
+            scaler.unscale_(optimizer)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             scaler.step(optimizer)
             scaler.update()
 
             epoch_loss += loss.item()
+            if np.isnan(epoch_loss):
+                logger.warning("NaN loss detected, stopping training")
+                break
             num_batches += 1
 
         avg_loss = epoch_loss / max(num_batches, 1)
