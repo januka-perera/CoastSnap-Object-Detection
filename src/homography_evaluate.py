@@ -222,12 +222,160 @@ def evaluate_homography(config_path: str = "configs/config.yaml", checkpoint_pat
     return metrics
 
 
+def visualise_alignment(
+    config_path: str = "configs/config.yaml",
+    checkpoint_path: str = None,
+    num_images: int = 5,
+    save_dir: str = None,
+):
+    """Visualise homography alignment for a selection of images.
+
+    For each image, saves a figure with:
+    - Top-left: reference image with reference GCPs (green x)
+    - Top-right: original target with target GCPs (red x)
+    - Bottom-left: warped target overlaid on reference (checkerboard blend)
+    - Bottom-right: warped target with transformed GCPs (blue o) vs reference GCPs (green x)
+    """
+    import matplotlib.pyplot as plt
+
+    with open(config_path, "r") as f:
+        cfg = yaml.safe_load(f)
+
+    hcfg = cfg["homography"]
+    model, reference, mask, cfg, device, ref_full_size = load_homography_model(
+        config_path, checkpoint_path,
+    )
+
+    # Load reference at full res for display
+    ref_bgr = cv2.imread(str(hcfg["reference_image"]))
+    ref_rgb = cv2.cvtColor(ref_bgr, cv2.COLOR_BGR2RGB)
+
+    # Load reference GCPs
+    ref_mat_path = hcfg.get("reference_mat",
+                             cfg.get("refinement", {}).get("reference_mat"))
+    ref_gcps = load_gcps_from_mat(ref_mat_path, hcfg["reference_image"])
+
+    images_dir = Path(cfg["data"]["images_dir"])
+    gcp_dir = Path("data/gcp")
+    ref_name = Path(hcfg["reference_image"]).name
+    num_iters = cfg["homography"].get("num_iterations", 1)
+
+    if save_dir is None:
+        save_dir = Path(cfg["output"]["results_dir"]) / "homography" / "visualisations"
+    else:
+        save_dir = Path(save_dir)
+    save_dir.mkdir(parents=True, exist_ok=True)
+
+    mat_files = sorted(gcp_dir.glob("*.mat"))
+    count = 0
+
+    for mat_path in mat_files:
+        if count >= num_images:
+            break
+
+        img_name = mat_path.name.replace(".plan.", ".snap.").replace(".mat", ".jpg")
+        img_path = images_dir / img_name
+        if not img_path.exists() or img_name == ref_name:
+            continue
+
+        try:
+            target_gcps = load_gcps_from_mat(str(mat_path), str(img_path))
+
+            # Predict homography
+            H_full, _ = predict_homography(
+                str(img_path), model, reference, cfg, device,
+                num_iterations=num_iters, ref_full_size=ref_full_size,
+            )
+
+            # Warp target to reference frame at reference resolution
+            target_bgr = cv2.imread(str(img_path))
+            from .homography_utils import warp_image
+            warped_bgr = warp_image(target_bgr, H_full, (ref_full_size[0], ref_full_size[1]))
+            warped_rgb = cv2.cvtColor(warped_bgr, cv2.COLOR_BGR2RGB)
+
+            target_rgb = cv2.cvtColor(target_bgr, cv2.COLOR_BGR2RGB)
+
+            # Transform GCPs
+            transformed_gcps = transform_points(target_gcps, H_full)
+
+            # Compute errors
+            errors = np.sqrt(np.sum((transformed_gcps - ref_gcps) ** 2, axis=1))
+
+            # Create checkerboard blend
+            block = 64
+            h, w = ref_rgb.shape[:2]
+            checker = np.zeros((h, w), dtype=bool)
+            for r in range(0, h, block):
+                for c in range(0, w, block):
+                    if ((r // block) + (c // block)) % 2 == 0:
+                        checker[r:r+block, c:c+block] = True
+            blended = ref_rgb.copy()
+            blended[checker] = warped_rgb[checker]
+
+            # Plot
+            fig, axes = plt.subplots(2, 2, figsize=(20, 15))
+            fig.suptitle(f"{img_name} — Mean error: {np.mean(errors):.1f}px", fontsize=14)
+
+            # Top-left: reference
+            axes[0, 0].imshow(ref_rgb)
+            axes[0, 0].scatter(ref_gcps[:, 0], ref_gcps[:, 1], c='lime', marker='x',
+                              s=100, linewidths=2, zorder=5)
+            axes[0, 0].set_title("Reference + GCPs")
+            axes[0, 0].axis("off")
+
+            # Top-right: original target
+            axes[0, 1].imshow(target_rgb)
+            axes[0, 1].scatter(target_gcps[:, 0], target_gcps[:, 1], c='red', marker='x',
+                              s=100, linewidths=2, zorder=5)
+            axes[0, 1].set_title("Target (original) + GCPs")
+            axes[0, 1].axis("off")
+
+            # Bottom-left: checkerboard blend
+            axes[1, 0].imshow(blended)
+            axes[1, 0].set_title("Checkerboard: reference vs warped target")
+            axes[1, 0].axis("off")
+
+            # Bottom-right: warped target with GCP comparison
+            axes[1, 1].imshow(warped_rgb)
+            axes[1, 1].scatter(ref_gcps[:, 0], ref_gcps[:, 1], c='lime', marker='x',
+                              s=100, linewidths=2, zorder=5, label='Reference GCPs')
+            axes[1, 1].scatter(transformed_gcps[:, 0], transformed_gcps[:, 1], c='blue',
+                              marker='o', s=80, facecolors='none', linewidths=2,
+                              zorder=5, label='Transformed GCPs')
+            for i in range(len(ref_gcps)):
+                axes[1, 1].plot([ref_gcps[i, 0], transformed_gcps[i, 0]],
+                               [ref_gcps[i, 1], transformed_gcps[i, 1]],
+                               'r-', linewidth=1, alpha=0.7)
+                axes[1, 1].annotate(f"{errors[i]:.0f}px",
+                                   xy=(transformed_gcps[i, 0], transformed_gcps[i, 1]),
+                                   fontsize=8, color='red')
+            axes[1, 1].legend(loc="upper right")
+            axes[1, 1].set_title("Warped target: transformed GCPs vs reference GCPs")
+            axes[1, 1].axis("off")
+
+            plt.tight_layout()
+            plt.savefig(save_dir / f"{Path(img_name).stem}_alignment.png", dpi=120)
+            plt.close()
+
+            count += 1
+            logger.info(f"Saved visualisation for {img_name}")
+
+        except Exception as e:
+            logger.error(f"Failed to visualise {img_name}: {e}")
+
+    logger.info(f"Saved {count} visualisations to {save_dir}")
+
+
 if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="configs/config.yaml")
     parser.add_argument("--checkpoint", default=None)
+    parser.add_argument("--visualise", action="store_true")
+    parser.add_argument("--num-vis", type=int, default=5)
     args = parser.parse_args()
 
     evaluate_homography(args.config, args.checkpoint)
+    if args.visualise:
+        visualise_alignment(args.config, args.checkpoint, args.num_vis)
