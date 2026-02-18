@@ -18,6 +18,7 @@ import yaml
 
 from .homography_model import HomographyNet
 from .homography_dataset import SyntheticHomographyDataset, RealPairDataset
+from .homography_real_dataset import RealGCPHomographyDataset, split_indices
 from .homography_utils import four_point_to_homography, warp_image
 
 
@@ -550,15 +551,344 @@ def train_stage2(config_path: str = "configs/config.yaml"):
     return model
 
 
+# ---------------------------------------------------------------------------
+# GCP reprojection loss
+# ---------------------------------------------------------------------------
+
+def gcp_reprojection_loss(
+    pred_four_point: torch.Tensor,
+    target_gcps: torch.Tensor,
+    ref_gcps: torch.Tensor,
+    working_size: tuple[int, int],
+) -> torch.Tensor:
+    """GCP reprojection loss — directly optimises the evaluation metric.
+
+    Converts predicted 4-point displacements to a homography, transforms
+    target GCPs, and computes L1 error against reference GCPs.
+
+    Args:
+        pred_four_point: (B, 8) predicted corner displacements.
+        target_gcps: (B, N, 2) target GCPs at working resolution.
+        ref_gcps: (B, N, 2) reference GCPs at working resolution.
+        working_size: (width, height) of the working image.
+
+    Returns:
+        Scalar L1 loss.
+    """
+    H_pred = _four_point_to_homography_torch(pred_four_point, working_size)
+
+    B, N, _ = target_gcps.shape
+    ones = torch.ones(B, N, 1, device=target_gcps.device, dtype=target_gcps.dtype)
+    pts_h = torch.cat([target_gcps, ones], dim=-1)  # (B, N, 3)
+
+    # Apply H: (B, 3, 3) @ (B, 3, N) -> (B, 3, N)
+    transformed_h = torch.bmm(H_pred, pts_h.permute(0, 2, 1))
+    # De-homogenise: (B, 2, N) / (B, 1, N)
+    transformed = transformed_h[:, :2, :] / transformed_h[:, 2:3, :].clamp(min=1e-8)
+    transformed = transformed.permute(0, 2, 1)  # (B, N, 2)
+
+    return torch.mean(torch.abs(transformed - ref_gcps))
+
+
+def compute_gcp_error(
+    pred_four_point: torch.Tensor,
+    target_gcps: torch.Tensor,
+    ref_gcps: torch.Tensor,
+    working_size: tuple[int, int],
+) -> float:
+    """Compute mean Euclidean GCP error in pixels (for validation).
+
+    Same as gcp_reprojection_loss but returns Euclidean distance
+    instead of L1, matching the evaluation metric.
+    """
+    H_pred = _four_point_to_homography_torch(pred_four_point, working_size)
+
+    B, N, _ = target_gcps.shape
+    ones = torch.ones(B, N, 1, device=target_gcps.device, dtype=target_gcps.dtype)
+    pts_h = torch.cat([target_gcps, ones], dim=-1)
+
+    transformed_h = torch.bmm(H_pred, pts_h.permute(0, 2, 1))
+    transformed = transformed_h[:, :2, :] / transformed_h[:, 2:3, :].clamp(min=1e-8)
+    transformed = transformed.permute(0, 2, 1)
+
+    errors = torch.norm(transformed - ref_gcps, dim=-1)  # (B, N)
+    return errors.mean().item()
+
+
+# ---------------------------------------------------------------------------
+# Stage 3: Real-supervised training with GCP reprojection loss
+# ---------------------------------------------------------------------------
+
+def train_real(config_path: str = "configs/config.yaml", from_checkpoint: str = None):
+    """Train on real image pairs with GCP reprojection loss.
+
+    Uses annotated GCP correspondences to compute ground-truth homographies,
+    then trains the model to minimise reprojection error on those GCPs.
+
+    Can warm-start from a synthetic or fine-tuned checkpoint.
+
+    Args:
+        config_path: Path to config yaml.
+        from_checkpoint: Optional path to checkpoint to initialise from.
+    """
+    with open(config_path, "r") as f:
+        cfg = yaml.safe_load(f)
+
+    hcfg = cfg["homography"]
+    rcfg = hcfg.get("real_supervised", {})
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    logger.info(f"Using device: {device}")
+
+    # Output directories
+    ckpt_dir = Path(hcfg["output"]["checkpoint_dir"])
+    log_dir = Path(cfg["output"]["log_dir"]) / "homography"
+    ckpt_dir.mkdir(parents=True, exist_ok=True)
+    log_dir.mkdir(parents=True, exist_ok=True)
+
+    working_size = (hcfg["working_width"], hcfg["working_height"])
+
+    # Reference .mat path
+    ref_mat_path = hcfg.get(
+        "reference_mat", cfg.get("refinement", {}).get("reference_mat"),
+    )
+    if ref_mat_path is None:
+        raise ValueError("reference_mat not found in config")
+
+    # Hyperparameters (with defaults)
+    batch_size = rcfg.get("batch_size", 4)
+    epochs = rcfg.get("epochs", 100)
+    encoder_lr = rcfg.get("encoder_lr", 1e-5)
+    head_lr = rcfg.get("head_lr", 1e-4)
+    freeze_epochs = rcfg.get("freeze_encoder_epochs", 5)
+    patience = rcfg.get("early_stopping_patience", 20)
+    train_ratio = rcfg.get("train_ratio", 0.70)
+    val_ratio = rcfg.get("val_ratio", 0.15)
+    split_seed = rcfg.get("seed", 42)
+    gcp_dir = rcfg.get("gcp_dir", "data/gcp")
+    displacement_weight = rcfg.get("displacement_weight", 0.0)
+
+    # Discover all valid samples (to compute split)
+    full_dataset = RealGCPHomographyDataset(
+        gcp_dir=gcp_dir,
+        images_dir=cfg["data"]["images_dir"],
+        reference_image_path=hcfg["reference_image"],
+        reference_mat_path=ref_mat_path,
+        working_size=working_size,
+        mask_path=hcfg.get("mask_path"),
+        sample_indices=None,
+        augment=False,
+    )
+    n_total = len(full_dataset)
+    logger.info(f"Total valid samples: {n_total}")
+
+    # Split indices
+    train_idx, val_idx, test_idx = split_indices(
+        n_total, train_ratio, val_ratio, split_seed,
+    )
+    logger.info(f"Split: train={len(train_idx)}, val={len(val_idx)}, test={len(test_idx)}")
+
+    # Save split for reproducibility
+    split_info = {"train": train_idx, "val": val_idx, "test": test_idx}
+    with open(log_dir / "real_data_split.json", "w") as f:
+        json.dump(split_info, f)
+
+    # Create train/val datasets
+    train_dataset = RealGCPHomographyDataset(
+        gcp_dir=gcp_dir,
+        images_dir=cfg["data"]["images_dir"],
+        reference_image_path=hcfg["reference_image"],
+        reference_mat_path=ref_mat_path,
+        working_size=working_size,
+        mask_path=hcfg.get("mask_path"),
+        sample_indices=train_idx,
+        augment=True,
+        seed=42,
+    )
+
+    val_dataset = RealGCPHomographyDataset(
+        gcp_dir=gcp_dir,
+        images_dir=cfg["data"]["images_dir"],
+        reference_image_path=hcfg["reference_image"],
+        reference_mat_path=ref_mat_path,
+        working_size=working_size,
+        mask_path=hcfg.get("mask_path"),
+        sample_indices=val_idx,
+        augment=False,
+    )
+
+    train_loader = DataLoader(
+        train_dataset, batch_size=batch_size, shuffle=True,
+        num_workers=4, pin_memory=True,
+    )
+    val_loader = DataLoader(
+        val_dataset, batch_size=batch_size, shuffle=False,
+        num_workers=4, pin_memory=True,
+    )
+
+    # Build model
+    model_cfg = hcfg["model"]
+    model = HomographyNet(
+        backbone=model_cfg["backbone"],
+        pretrained=True,
+        dropout=model_cfg.get("dropout", 0.5),
+    ).to(device)
+
+    # Optionally warm-start from checkpoint
+    ckpt_path = from_checkpoint or rcfg.get("from_checkpoint")
+    if ckpt_path and Path(ckpt_path).exists():
+        checkpoint = torch.load(ckpt_path, map_location=device, weights_only=False)
+        model.load_state_dict(checkpoint["model_state_dict"])
+        logger.info(f"Warm-started from {ckpt_path}")
+    else:
+        logger.info("Training from scratch (no checkpoint)")
+
+    # Disable AMP — half-precision can cause NaN in linalg.solve
+    use_amp = False
+
+    # Start with frozen encoder
+    model.freeze_encoder()
+    optimizer = torch.optim.Adam(
+        model.get_param_groups(encoder_lr=0.0, head_lr=head_lr),
+        weight_decay=1e-4,
+    )
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, mode="min", factor=0.5, patience=10,
+    )
+
+    best_val_error = float("inf")
+    patience_counter = 0
+    history = {"train_loss": [], "val_loss": [], "val_gcp_error": []}
+
+    for epoch in range(1, epochs + 1):
+        # Unfreeze encoder after warmup
+        if epoch == freeze_epochs + 1:
+            logger.info("Unfreezing encoder")
+            model.unfreeze_encoder()
+            optimizer = torch.optim.Adam(
+                model.get_param_groups(encoder_lr=encoder_lr, head_lr=head_lr),
+                weight_decay=1e-4,
+            )
+            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+                optimizer, mode="min", factor=0.5, patience=10,
+            )
+
+        # --- Training ---
+        model.train()
+        train_loss_sum = 0.0
+        train_batches = 0
+
+        for batch in train_loader:
+            inputs = batch["input"].to(device)
+            gt_four_point = batch["four_point"].to(device)
+            target_gcps = batch["target_gcps"].to(device)
+            ref_gcps = batch["ref_gcps"].to(device)
+
+            optimizer.zero_grad()
+
+            pred = model(inputs)
+
+            # Primary loss: GCP reprojection
+            loss = gcp_reprojection_loss(pred, target_gcps, ref_gcps, working_size)
+
+            # Optional auxiliary loss: displacement L1
+            if displacement_weight > 0:
+                disp_loss = masked_l1_loss(pred, gt_four_point)
+                loss = loss + displacement_weight * disp_loss
+
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            optimizer.step()
+
+            train_loss_sum += loss.item()
+            train_batches += 1
+
+        avg_train_loss = train_loss_sum / max(train_batches, 1)
+
+        # --- Validation ---
+        model.eval()
+        val_loss_sum = 0.0
+        val_error_sum = 0.0
+        val_batches = 0
+
+        with torch.no_grad():
+            for batch in val_loader:
+                inputs = batch["input"].to(device)
+                target_gcps = batch["target_gcps"].to(device)
+                ref_gcps = batch["ref_gcps"].to(device)
+
+                pred = model(inputs)
+                loss = gcp_reprojection_loss(pred, target_gcps, ref_gcps, working_size)
+                gcp_err = compute_gcp_error(pred, target_gcps, ref_gcps, working_size)
+
+                val_loss_sum += loss.item()
+                val_error_sum += gcp_err
+                val_batches += 1
+
+        avg_val_loss = val_loss_sum / max(val_batches, 1)
+        avg_val_error = val_error_sum / max(val_batches, 1)
+
+        history["train_loss"].append(avg_train_loss)
+        history["val_loss"].append(avg_val_loss)
+        history["val_gcp_error"].append(avg_val_error)
+
+        scheduler.step(avg_val_loss)
+        current_lr = optimizer.param_groups[-1]["lr"]
+
+        logger.info(
+            f"Epoch {epoch}/{epochs} | "
+            f"Train Loss: {avg_train_loss:.4f} | "
+            f"Val Loss: {avg_val_loss:.4f} | "
+            f"Val GCP Error: {avg_val_error:.2f}px | "
+            f"LR: {current_lr:.2e}"
+        )
+
+        # Checkpoint on best validation GCP error
+        if avg_val_error < best_val_error:
+            best_val_error = avg_val_error
+            patience_counter = 0
+            torch.save({
+                "epoch": epoch,
+                "model_state_dict": model.state_dict(),
+                "optimizer_state_dict": optimizer.state_dict(),
+                "val_loss": avg_val_loss,
+                "val_gcp_error": avg_val_error,
+                "stage": "real",
+                "config": cfg,
+            }, ckpt_dir / "best_homography_real.pth")
+            logger.info(
+                f"  -> Saved best model (val_gcp_error={avg_val_error:.2f}px)"
+            )
+        else:
+            patience_counter += 1
+
+        if patience_counter >= patience:
+            logger.info(f"Early stopping at epoch {epoch}")
+            break
+
+    # Save history
+    with open(log_dir / "history_real.json", "w") as f:
+        json.dump(history, f)
+
+    logger.info(
+        f"Real-supervised training complete. "
+        f"Best val GCP error: {best_val_error:.2f}px"
+    )
+    return model
+
+
 if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="configs/config.yaml")
-    parser.add_argument("--stage", type=int, default=1, choices=[1, 2])
+    parser.add_argument("--stage", default="1", choices=["1", "2", "real"])
+    parser.add_argument("--checkpoint", default=None,
+                        help="Path to checkpoint to warm-start from (stage=real only)")
     args = parser.parse_args()
 
-    if args.stage == 1:
+    if args.stage == "1":
         train_stage1(args.config)
-    else:
+    elif args.stage == "2":
         train_stage2(args.config)
+    else:
+        train_real(args.config, from_checkpoint=args.checkpoint)

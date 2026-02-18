@@ -84,6 +84,19 @@ homography:
     batch_size: 8
     epochs: 200
   num_iterations: 3  # iterative predict-warp-predict refinement
+  real_supervised:
+    gcp_dir: "data/gcp"
+    batch_size: 4
+    epochs: 100
+    encoder_lr: 1.0e-5
+    head_lr: 1.0e-4
+    freeze_encoder_epochs: 5
+    early_stopping_patience: 20
+    train_ratio: 0.70
+    val_ratio: 0.15
+    seed: 42
+    displacement_weight: 0.0  # auxiliary L1 displacement loss weight (0 = GCP-only)
+    from_checkpoint: null     # warm-start from checkpoint path, or null
   output:
     checkpoint_dir: "checkpoints/homography"
 
