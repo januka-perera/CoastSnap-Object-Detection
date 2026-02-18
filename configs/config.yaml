@@ -84,6 +84,10 @@ homography:
     batch_size: 8
     epochs: 200
   num_iterations: 3  # iterative predict-warp-predict refinement
+  gauss_newton:
+    enabled: true
+    resolution: 1024  # longest edge for GN refinement (higher = more precise)
+    num_iters: 15
   real_supervised:
     gcp_dir: "data/gcp"
     batch_size: 4

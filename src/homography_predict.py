@@ -15,6 +15,8 @@ import yaml
 from .homography_model import HomographyNet
 from .homography_utils import (
     four_point_to_homography,
+    gauss_newton_refine,
+    scale_homography,
     scale_homography_asymmetric,
     transform_points,
     warp_image,
@@ -87,12 +89,14 @@ def predict_homography(
     device: torch.device,
     num_iterations: int = 1,
     ref_full_size: tuple[int, int] = None,
+    ref_gray_full: np.ndarray = None,
+    mask_full: np.ndarray = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Predict the homography aligning a target image to the reference.
 
     Supports iterative refinement: predict H, warp, predict residual,
-    compose. Each iteration corrects the residual misalignment from
-    the previous step.
+    compose. Optionally applies Gauss-Newton photometric refinement
+    as a final post-processing step.
 
     Args:
         image_path: Path to the target image.
@@ -104,6 +108,10 @@ def predict_homography(
         ref_full_size: (width, height) of reference at full resolution.
             Required for correct scaling when target and reference have
             different resolutions.
+        ref_gray_full: Full-resolution grayscale reference for Gauss-Newton
+            refinement. If None and GN is enabled, loaded from config.
+        mask_full: Full-resolution mask for Gauss-Newton. If None and GN
+            is enabled, loaded from config.
 
     Returns:
         (H_full, four_point) where H_full is the (3, 3) composed homography at
@@ -154,6 +162,62 @@ def predict_homography(
     H_full = scale_homography_asymmetric(
         H_composed, working_size, target_full_size, ref_full_size,
     )
+
+    # --- Gauss-Newton photometric refinement ---
+    gn_cfg = hcfg.get("gauss_newton", {})
+    if gn_cfg.get("enabled", False):
+        gn_resolution = gn_cfg.get("resolution", 1024)
+        gn_iters = gn_cfg.get("num_iters", 15)
+
+        # Compute GN working size preserving aspect ratio of reference
+        ref_w_full, ref_h_full = ref_full_size
+        scale = gn_resolution / max(ref_w_full, ref_h_full)
+        gn_w = int(round(ref_w_full * scale))
+        gn_h = int(round(ref_h_full * scale))
+        gn_size = (gn_w, gn_h)
+
+        # Prepare reference at GN resolution
+        if ref_gray_full is not None:
+            ref_gn = cv2.resize(ref_gray_full, gn_size).astype(np.float64) / 255.0
+        else:
+            ref_bgr = cv2.imread(str(hcfg["reference_image"]))
+            ref_g = cv2.cvtColor(ref_bgr, cv2.COLOR_BGR2GRAY)
+            ref_gn = cv2.resize(ref_g, gn_size).astype(np.float64) / 255.0
+
+        # Prepare target at GN resolution
+        target_gn = cv2.resize(target_gray, gn_size).astype(np.float64) / 255.0
+
+        # Prepare mask at GN resolution
+        if mask_full is not None:
+            mask_gn = cv2.resize(mask_full, gn_size, interpolation=cv2.INTER_NEAREST)
+        else:
+            mask_path = hcfg.get("mask_path")
+            if mask_path and Path(mask_path).exists():
+                m = cv2.imread(str(mask_path), cv2.IMREAD_GRAYSCALE)
+                mask_gn = cv2.resize(m, gn_size, interpolation=cv2.INTER_NEAREST)
+            else:
+                mask_gn = None
+
+        # Scale H_full to GN resolution
+        H_gn = scale_homography_asymmetric(
+            H_composed, working_size,
+            (orig_w, orig_h), gn_size,
+        )
+
+        H_gn_refined = gauss_newton_refine(
+            H_gn, ref_gn, target_gn, mask_gn,
+            num_iters=gn_iters,
+        )
+
+        # Scale refined H back to full resolution
+        H_full = scale_homography_asymmetric(
+            H_gn_refined,
+            gn_size,             # "working" for GN
+            (orig_w, orig_h),    # target full
+            ref_full_size,       # ref full
+        )
+
+        logger.info(f"Gauss-Newton refinement: {gn_iters} iters at {gn_w}x{gn_h}")
 
     return H_full, pred_four_point
 
