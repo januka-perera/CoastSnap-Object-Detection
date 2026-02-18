@@ -84,8 +84,13 @@ def predict_homography(
     reference: np.ndarray,
     cfg: dict,
     device: torch.device,
+    num_iterations: int = 1,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Predict the homography aligning a target image to the reference.
+
+    Supports iterative refinement: predict H, warp, predict residual,
+    compose. Each iteration corrects the residual misalignment from
+    the previous step.
 
     Args:
         image_path: Path to the target image.
@@ -93,13 +98,15 @@ def predict_homography(
         reference: (H, W) float32 grayscale reference at working resolution.
         cfg: Config dict.
         device: Torch device.
+        num_iterations: Number of predict-warp-predict iterations (default 1).
 
     Returns:
-        (H_full, four_point) where H_full is the (3, 3) homography at
-        full resolution and four_point is the (8,) displacement at working res.
+        (H_full, four_point) where H_full is the (3, 3) composed homography at
+        full resolution and four_point is the last iteration's displacement.
     """
     hcfg = cfg["homography"]
     working_w, working_h = hcfg["working_width"], hcfg["working_height"]
+    working_size = (working_w, working_h)
 
     # Load and preprocess target
     target_bgr = cv2.imread(str(image_path))
@@ -110,19 +117,26 @@ def predict_homography(
     target_gray = cv2.cvtColor(target_bgr, cv2.COLOR_BGR2GRAY)
     target_working = cv2.resize(target_gray, (working_w, working_h)).astype(np.float32) / 255.0
 
-    # Stack as 2-channel input
-    input_pair = np.stack([reference, target_working], axis=0)  # (2, H, W)
-    input_tensor = torch.from_numpy(input_pair).unsqueeze(0).to(device)  # (1, 2, H, W)
+    # Iterative prediction
+    H_composed = np.eye(3, dtype=np.float64)
+    current_target = target_working
 
-    # Forward pass
-    with torch.no_grad():
-        pred_four_point = model(input_tensor).cpu().numpy().flatten()  # (8,)
+    for i in range(num_iterations):
+        input_pair = np.stack([reference, current_target], axis=0)
+        input_tensor = torch.from_numpy(input_pair).unsqueeze(0).to(device)
 
-    # Convert to 3x3 homography at working resolution
-    H_working = four_point_to_homography(pred_four_point, (working_w, working_h))
+        with torch.no_grad():
+            pred_four_point = model(input_tensor).cpu().numpy().flatten()
+
+        H_iter = four_point_to_homography(pred_four_point, working_size)
+        H_composed = H_iter @ H_composed
+
+        if i < num_iterations - 1:
+            # Warp original target by composed H for next iteration
+            current_target = warp_image(target_working, H_composed, working_size)
 
     # Scale to full resolution
-    H_full = scale_homography(H_working, (working_w, working_h), (orig_w, orig_h))
+    H_full = scale_homography(H_composed, working_size, (orig_w, orig_h))
 
     return H_full, pred_four_point
 

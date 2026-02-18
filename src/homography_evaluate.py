@@ -116,9 +116,11 @@ def evaluate_homography(config_path: str = "configs/config.yaml", checkpoint_pat
                 logger.warning(f"Skipping {img_name}: {target_gcps.shape[0]} GCPs != {num_gcps}")
                 continue
 
-            # Predict homography
+            # Predict homography (with iterative refinement)
+            num_iters = cfg["homography"].get("num_iterations", 1)
             H_full, four_point = predict_homography(
                 str(img_path), model, reference, cfg, device,
+                num_iterations=num_iters,
             )
 
             # Transform target GCPs by H

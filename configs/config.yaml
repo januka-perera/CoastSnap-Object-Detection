@@ -83,6 +83,7 @@ homography:
     samples_per_epoch: 10000
     batch_size: 8
     epochs: 200
+  num_iterations: 3  # iterative predict-warp-predict refinement
   output:
     checkpoint_dir: "checkpoints/homography"
 
