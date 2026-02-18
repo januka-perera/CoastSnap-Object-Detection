@@ -22,7 +22,10 @@ from .homography_utils import four_point_to_homography, warp_image
 
 
 def _four_point_to_homography_torch(four_point: torch.Tensor, size: tuple[int, int]) -> torch.Tensor:
-    """Differentiable 4-point to 3x3 homography via DLT (batched).
+    """Differentiable 4-point to 3x3 homography (batched).
+
+    Uses direct linear solve (Ah = b with h33=1) instead of SVD for
+    numerical stability on GPU.
 
     Args:
         four_point: (B, 8) corner displacements.
@@ -34,35 +37,52 @@ def _four_point_to_homography_torch(four_point: torch.Tensor, size: tuple[int, i
     B = four_point.shape[0]
     w, h = size
     device = four_point.device
+    dtype = torch.float32
+
+    four_point = four_point.float()
 
     # Canonical corners
     src = torch.tensor([
         [0, 0], [w - 1, 0], [w - 1, h - 1], [0, h - 1]
-    ], dtype=four_point.dtype, device=device)  # (4, 2)
+    ], dtype=dtype, device=device)
 
     dst = src.unsqueeze(0) + four_point.view(B, 4, 2)  # (B, 4, 2)
     src = src.unsqueeze(0).expand(B, -1, -1)  # (B, 4, 2)
 
-    # Build DLT system: for each point pair (x,y) -> (x',y')
-    # Two equations per point, 8 equations total for 8 unknowns (h33=1)
-    ones = torch.ones(B, 4, 1, dtype=four_point.dtype, device=device)
-    zeros = torch.zeros(B, 4, 3, dtype=four_point.dtype, device=device)
+    # Build 8x8 system Ah = b where h = [h11,h12,h13,h21,h22,h23,h31,h32] and h33=1
+    # For each point (sx,sy) -> (dx,dy):
+    #   sx*h11 + sy*h12 + h13 - sx*dx*h31 - sy*dx*h32 = dx
+    #   sx*h21 + sy*h22 + h23 - sx*dy*h31 - sy*dy*h32 = dy
+    A = torch.zeros(B, 8, 8, dtype=dtype, device=device)
+    b = torch.zeros(B, 8, dtype=dtype, device=device)
 
-    sx, sy = src[..., 0:1], src[..., 1:2]  # (B, 4, 1)
-    dx, dy = dst[..., 0:1], dst[..., 1:2]
+    for i in range(4):
+        sx = src[:, i, 0]
+        sy = src[:, i, 1]
+        dx = dst[:, i, 0]
+        dy = dst[:, i, 1]
 
-    src_h = torch.cat([sx, sy, ones], dim=-1)  # (B, 4, 3)
+        # Row 2*i: equation for x'
+        A[:, 2 * i, 0] = sx
+        A[:, 2 * i, 1] = sy
+        A[:, 2 * i, 2] = 1
+        A[:, 2 * i, 6] = -sx * dx
+        A[:, 2 * i, 7] = -sy * dx
+        b[:, 2 * i] = dx
 
-    row1 = torch.cat([src_h, zeros, -dx * sx, -dx * sy, -dx], dim=-1)  # (B, 4, 9)
-    row2 = torch.cat([zeros, src_h, -dy * sx, -dy * sy, -dy], dim=-1)  # (B, 4, 9)
+        # Row 2*i+1: equation for y'
+        A[:, 2 * i + 1, 3] = sx
+        A[:, 2 * i + 1, 4] = sy
+        A[:, 2 * i + 1, 5] = 1
+        A[:, 2 * i + 1, 6] = -sx * dy
+        A[:, 2 * i + 1, 7] = -sy * dy
+        b[:, 2 * i + 1] = dy
 
-    A = torch.cat([row1, row2], dim=1).float()  # (B, 8, 9) — force float32 for SVD
+    h = torch.linalg.solve(A, b)  # (B, 8)
 
-    # Solve via SVD
-    _, _, Vt = torch.linalg.svd(A)
-    H = Vt[:, -1, :].view(B, 3, 3)
-    H = H / H[:, 2:3, 2:3]  # normalise so h33 = 1
-    return H
+    H = torch.ones(B, 9, dtype=dtype, device=device)
+    H[:, :8] = h
+    return H.view(B, 3, 3)
 
 
 def _differentiable_warp(image: torch.Tensor, H: torch.Tensor) -> torch.Tensor:
