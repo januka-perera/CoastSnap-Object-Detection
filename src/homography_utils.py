@@ -65,7 +65,10 @@ def scale_homography(
     from_size: tuple[int, int],
     to_size: tuple[int, int],
 ) -> np.ndarray:
-    """Rescale a homography between different image resolutions.
+    """Rescale a homography assuming both src and dst scale identically.
+
+    Use scale_homography_asymmetric when source and destination images
+    have different full resolutions.
 
     Args:
         H: (3, 3) homography computed at from_size resolution.
@@ -91,6 +94,49 @@ def scale_homography(
     ], dtype=np.float64)
 
     return S @ H @ S_inv
+
+
+def scale_homography_asymmetric(
+    H: np.ndarray,
+    working_size: tuple[int, int],
+    src_full_size: tuple[int, int],
+    dst_full_size: tuple[int, int],
+) -> np.ndarray:
+    """Rescale a homography when source and destination have different resolutions.
+
+    H_working maps: working-res source coords -> working-res destination coords.
+    H_full maps: full-res source coords -> full-res destination coords.
+
+    H_full = S_dst @ H_working @ S_src_inv
+
+    Args:
+        H: (3, 3) homography at working resolution.
+        working_size: (width, height) working resolution.
+        src_full_size: (width, height) full resolution of source (target) image.
+        dst_full_size: (width, height) full resolution of destination (reference) image.
+
+    Returns:
+        (3, 3) homography mapping full-res source to full-res destination.
+    """
+    # S_src_inv: full source -> working
+    sx_src = working_size[0] / src_full_size[0]
+    sy_src = working_size[1] / src_full_size[1]
+    S_src_inv = np.array([
+        [sx_src, 0, 0],
+        [0, sy_src, 0],
+        [0, 0, 1],
+    ], dtype=np.float64)
+
+    # S_dst: working -> full destination
+    sx_dst = dst_full_size[0] / working_size[0]
+    sy_dst = dst_full_size[1] / working_size[1]
+    S_dst = np.array([
+        [sx_dst, 0, 0],
+        [0, sy_dst, 0],
+        [0, 0, 1],
+    ], dtype=np.float64)
+
+    return S_dst @ H @ S_src_inv
 
 
 def warp_image(

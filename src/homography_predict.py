@@ -15,7 +15,7 @@ import yaml
 from .homography_model import HomographyNet
 from .homography_utils import (
     four_point_to_homography,
-    scale_homography,
+    scale_homography_asymmetric,
     transform_points,
     warp_image,
 )
@@ -64,6 +64,7 @@ def load_homography_model(
     ref_bgr = cv2.imread(str(hcfg["reference_image"]))
     if ref_bgr is None:
         raise FileNotFoundError(f"Reference not found: {hcfg['reference_image']}")
+    ref_full_h, ref_full_w = ref_bgr.shape[:2]
     ref_gray = cv2.cvtColor(ref_bgr, cv2.COLOR_BGR2GRAY)
     ref_working = cv2.resize(ref_gray, (working_w, working_h)).astype(np.float32) / 255.0
 
@@ -75,7 +76,7 @@ def load_homography_model(
     else:
         mask = np.ones((working_h, working_w), dtype=np.float32)
 
-    return model, ref_working, mask, cfg, device
+    return model, ref_working, mask, cfg, device, (ref_full_w, ref_full_h)
 
 
 def predict_homography(
@@ -85,6 +86,7 @@ def predict_homography(
     cfg: dict,
     device: torch.device,
     num_iterations: int = 1,
+    ref_full_size: tuple[int, int] = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Predict the homography aligning a target image to the reference.
 
@@ -99,6 +101,9 @@ def predict_homography(
         cfg: Config dict.
         device: Torch device.
         num_iterations: Number of predict-warp-predict iterations (default 1).
+        ref_full_size: (width, height) of reference at full resolution.
+            Required for correct scaling when target and reference have
+            different resolutions.
 
     Returns:
         (H_full, four_point) where H_full is the (3, 3) composed homography at
@@ -142,8 +147,13 @@ def predict_homography(
             # Warp original target by composed H for next iteration
             current_target = warp_image(target_working, H_composed, working_size)
 
-    # Scale to full resolution
-    H_full = scale_homography(H_composed, working_size, (orig_w, orig_h))
+    # Scale to full resolution (asymmetric: target and reference may differ)
+    target_full_size = (orig_w, orig_h)
+    if ref_full_size is None:
+        ref_full_size = target_full_size
+    H_full = scale_homography_asymmetric(
+        H_composed, working_size, target_full_size, ref_full_size,
+    )
 
     return H_full, pred_four_point
 
@@ -191,9 +201,10 @@ def predict_and_warp(
     Returns:
         Dict with H_full, four_point, and optionally warped_path.
     """
-    model, reference, mask, cfg, device = load_homography_model(config_path, checkpoint_path)
+    model, reference, mask, cfg, device, ref_full_size = load_homography_model(config_path, checkpoint_path)
 
-    H_full, four_point = predict_homography(image_path, model, reference, cfg, device)
+    H_full, four_point = predict_homography(image_path, model, reference, cfg, device,
+                                            ref_full_size=ref_full_size)
     warped = warp_to_reference(image_path, H_full)
 
     result = {
@@ -221,7 +232,7 @@ if __name__ == "__main__":
     parser.add_argument("--output-dir", default="results/homography")
     args = parser.parse_args()
 
-    model, reference, mask, cfg, device = load_homography_model(args.config, args.checkpoint)
+    model, reference, mask, cfg, device, ref_full_size = load_homography_model(args.config, args.checkpoint)
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -229,7 +240,8 @@ if __name__ == "__main__":
     results = []
     for img_path in args.images:
         try:
-            H_full, four_point = predict_homography(img_path, model, reference, cfg, device)
+            H_full, four_point = predict_homography(img_path, model, reference, cfg, device,
+                                                      ref_full_size=ref_full_size)
             warped = warp_to_reference(img_path, H_full)
 
             save_name = f"aligned_{Path(img_path).stem}.jpg"

@@ -72,7 +72,7 @@ def evaluate_homography(config_path: str = "configs/config.yaml", checkpoint_pat
     hcfg = cfg["homography"]
 
     # Load model
-    model, reference, mask, cfg, device = load_homography_model(config_path, checkpoint_path)
+    model, reference, mask, cfg, device, ref_full_size = load_homography_model(config_path, checkpoint_path)
 
     # Load reference GCPs
     ref_image_path = hcfg["reference_image"]
@@ -121,6 +121,7 @@ def evaluate_homography(config_path: str = "configs/config.yaml", checkpoint_pat
             H_full, four_point = predict_homography(
                 str(img_path), model, reference, cfg, device,
                 num_iterations=num_iters,
+                ref_full_size=ref_full_size,
             )
 
             # Transform target GCPs by H
