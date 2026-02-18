@@ -151,7 +151,10 @@ def evaluate_homography(config_path: str = "configs/config.yaml", checkpoint_pat
                 })
 
             results.append(sample_result)
-            logger.info(f"{img_name}: mean={np.mean(errors):.1f}px, max={np.max(errors):.1f}px")
+            err_level = "WARNING" if np.mean(errors) > 200 else "INFO"
+            getattr(logger, err_level.lower())(
+                f"{img_name}: mean={np.mean(errors):.1f}px, max={np.max(errors):.1f}px"
+            )
 
         except Exception as e:
             logger.error(f"Failed on {img_name}: {e}")
