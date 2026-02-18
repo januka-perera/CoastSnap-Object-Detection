@@ -20,6 +20,83 @@ from .homography_model import HomographyNet
 from .homography_dataset import SyntheticHomographyDataset, RealPairDataset
 from .homography_utils import four_point_to_homography, warp_image
 
+
+def _four_point_to_homography_torch(four_point: torch.Tensor, size: tuple[int, int]) -> torch.Tensor:
+    """Differentiable 4-point to 3x3 homography via DLT (batched).
+
+    Args:
+        four_point: (B, 8) corner displacements.
+        size: (width, height) of the image.
+
+    Returns:
+        (B, 3, 3) homography matrices.
+    """
+    B = four_point.shape[0]
+    w, h = size
+    device = four_point.device
+
+    # Canonical corners
+    src = torch.tensor([
+        [0, 0], [w - 1, 0], [w - 1, h - 1], [0, h - 1]
+    ], dtype=four_point.dtype, device=device)  # (4, 2)
+
+    dst = src.unsqueeze(0) + four_point.view(B, 4, 2)  # (B, 4, 2)
+    src = src.unsqueeze(0).expand(B, -1, -1)  # (B, 4, 2)
+
+    # Build DLT system: for each point pair (x,y) -> (x',y')
+    # Two equations per point, 8 equations total for 8 unknowns (h33=1)
+    ones = torch.ones(B, 4, 1, dtype=four_point.dtype, device=device)
+    zeros = torch.zeros(B, 4, 3, dtype=four_point.dtype, device=device)
+
+    sx, sy = src[..., 0:1], src[..., 1:2]  # (B, 4, 1)
+    dx, dy = dst[..., 0:1], dst[..., 1:2]
+
+    src_h = torch.cat([sx, sy, ones], dim=-1)  # (B, 4, 3)
+
+    row1 = torch.cat([src_h, zeros, -dx * sx, -dx * sy, -dx], dim=-1)  # (B, 4, 9)
+    row2 = torch.cat([zeros, src_h, -dy * sx, -dy * sy, -dy], dim=-1)  # (B, 4, 9)
+
+    A = torch.cat([row1, row2], dim=1)  # (B, 8, 9)
+
+    # Solve via SVD
+    _, _, Vt = torch.linalg.svd(A)
+    H = Vt[:, -1, :].view(B, 3, 3)
+    H = H / H[:, 2:3, 2:3]  # normalise so h33 = 1
+    return H
+
+
+def _differentiable_warp(image: torch.Tensor, H: torch.Tensor) -> torch.Tensor:
+    """Differentiable image warping using grid_sample.
+
+    Args:
+        image: (B, 1, H, W) input images.
+        H: (B, 3, 3) homography matrices.
+
+    Returns:
+        (B, 1, H, W) warped images.
+    """
+    B, _, Himg, Wimg = image.shape
+    device = image.device
+
+    # Create normalised grid [-1, 1]
+    yy, xx = torch.meshgrid(
+        torch.linspace(-1, 1, Himg, device=device),
+        torch.linspace(-1, 1, Wimg, device=device),
+        indexing="ij",
+    )
+    ones = torch.ones_like(xx)
+    grid = torch.stack([xx, yy, ones], dim=-1).view(-1, 3)  # (H*W, 3)
+
+    # Apply H inverse to get source coordinates
+    H_inv = torch.linalg.inv(H)  # (B, 3, 3)
+    grid_src = torch.bmm(H_inv, grid.unsqueeze(0).expand(B, -1, -1).permute(0, 2, 1))  # (B, 3, H*W)
+    grid_src = grid_src.permute(0, 2, 1)  # (B, H*W, 3)
+    grid_src = grid_src[..., :2] / grid_src[..., 2:3]  # normalise
+
+    grid_src = grid_src.view(B, Himg, Wimg, 2)
+    return torch.nn.functional.grid_sample(image, grid_src, mode="bilinear",
+                                           padding_mode="border", align_corners=True)
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
 
@@ -351,18 +428,12 @@ def train_stage2(config_path: str = "configs/config.yaml"):
             with torch.cuda.amp.autocast(enabled=use_amp):
                 pred_four_point = model(inputs)
 
-                # Warp each target by predicted H
-                warped_batch = []
-                for i in range(B):
-                    fp = pred_four_point[i].detach().cpu().numpy()
-                    H = four_point_to_homography(fp, working_size)
-                    target_np = inputs[i, 1].cpu().numpy()  # target channel
-                    warped = warp_image(target_np, H, working_size)
-                    warped_batch.append(torch.from_numpy(warped).unsqueeze(0))
+                # Differentiable warp: target -> reference frame
+                H_batch = _four_point_to_homography_torch(pred_four_point, working_size)
+                target_images = inputs[:, 1:2, :, :]  # (B, 1, H, W)
+                warped_tensor = _differentiable_warp(target_images, H_batch)
 
-                warped_tensor = torch.stack(warped_batch).to(device)  # (B, 1, H, W)
                 ref_batch = ref_tensor.expand(B, -1, -1, -1)
-
                 loss = masked_photometric_loss(warped_tensor, ref_batch, mask)
 
             scaler.scale(loss).backward()
