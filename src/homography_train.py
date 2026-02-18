@@ -56,7 +56,7 @@ def _four_point_to_homography_torch(four_point: torch.Tensor, size: tuple[int, i
     row1 = torch.cat([src_h, zeros, -dx * sx, -dx * sy, -dx], dim=-1)  # (B, 4, 9)
     row2 = torch.cat([zeros, src_h, -dy * sx, -dy * sy, -dy], dim=-1)  # (B, 4, 9)
 
-    A = torch.cat([row1, row2], dim=1)  # (B, 8, 9)
+    A = torch.cat([row1, row2], dim=1).float()  # (B, 8, 9) — force float32 for SVD
 
     # Solve via SVD
     _, _, Vt = torch.linalg.svd(A)
