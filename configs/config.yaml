@@ -76,10 +76,10 @@ homography:
   model:
     backbone: "resnet18"
     dropout: 0.5
-  working_width: 512
-  working_height: 384
+  working_width: 1024
+  working_height: 768
   synthetic:
-    max_displacement: 32.0
+    max_displacement: 64.0
     samples_per_epoch: 10000
     batch_size: 8
     epochs: 200
