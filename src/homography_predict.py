@@ -121,6 +121,9 @@ def predict_homography(
     H_composed = np.eye(3, dtype=np.float64)
     current_target = target_working
 
+    if num_iterations > 1:
+        logger.info(f"Iterative refinement: {num_iterations} iterations")
+
     for i in range(num_iterations):
         input_pair = np.stack([reference, current_target], axis=0)
         input_tensor = torch.from_numpy(input_pair).unsqueeze(0).to(device)
@@ -130,6 +133,10 @@ def predict_homography(
 
         H_iter = four_point_to_homography(pred_four_point, working_size)
         H_composed = H_iter @ H_composed
+
+        if num_iterations > 1:
+            max_disp = np.abs(pred_four_point).max()
+            logger.info(f"  Iter {i+1}: max displacement = {max_disp:.2f}px")
 
         if i < num_iterations - 1:
             # Warp original target by composed H for next iteration
