@@ -142,25 +142,84 @@ def masked_l1_loss(
     return torch.mean(torch.abs(pred - target))
 
 
+def _masked_ssim(
+    x: torch.Tensor,
+    y: torch.Tensor,
+    mask: torch.Tensor,
+    window_size: int = 11,
+) -> torch.Tensor:
+    """Compute masked SSIM between two single-channel images.
+
+    Args:
+        x: (B, 1, H, W) image.
+        y: (B, 1, H, W) image.
+        mask: (B, H, W) static region mask.
+        window_size: Size of the Gaussian averaging window.
+
+    Returns:
+        Scalar SSIM loss (1 - SSIM, so lower is better).
+    """
+    C1 = 0.01 ** 2
+    C2 = 0.03 ** 2
+    pad = window_size // 2
+
+    # Uniform averaging kernel
+    kernel = torch.ones(1, 1, window_size, window_size, device=x.device, dtype=x.dtype)
+    kernel = kernel / (window_size * window_size)
+
+    mu_x = torch.nn.functional.conv2d(x, kernel, padding=pad)
+    mu_y = torch.nn.functional.conv2d(y, kernel, padding=pad)
+
+    mu_x_sq = mu_x * mu_x
+    mu_y_sq = mu_y * mu_y
+    mu_xy = mu_x * mu_y
+
+    sigma_x_sq = torch.nn.functional.conv2d(x * x, kernel, padding=pad) - mu_x_sq
+    sigma_y_sq = torch.nn.functional.conv2d(y * y, kernel, padding=pad) - mu_y_sq
+    sigma_xy = torch.nn.functional.conv2d(x * y, kernel, padding=pad) - mu_xy
+
+    ssim_map = ((2 * mu_xy + C1) * (2 * sigma_xy + C2)) / \
+               ((mu_x_sq + mu_y_sq + C1) * (sigma_x_sq + sigma_y_sq + C2))
+
+    ssim_map = ssim_map.squeeze(1)  # (B, H, W)
+
+    # Apply mask
+    masked_ssim = ssim_map * mask
+    num_pixels = mask.sum().clamp(min=1.0)
+    return 1.0 - masked_ssim.sum() / num_pixels
+
+
 def masked_photometric_loss(
     warped: torch.Tensor,
     reference: torch.Tensor,
     mask: torch.Tensor,
+    ssim_weight: float = 0.5,
 ) -> torch.Tensor:
-    """Masked L1 photometric loss for self-supervised fine-tuning.
+    """Masked L1 + SSIM photometric loss for self-supervised fine-tuning.
+
+    Combines L1 (pixel-level accuracy) with SSIM (structural similarity),
+    weighted by ssim_weight. SSIM is less sensitive to global brightness
+    changes and focuses on edges and patterns.
 
     Args:
         warped: (B, 1, H, W) target warped to reference frame.
         reference: (B, 1, H, W) reference image.
         mask: (B, H, W) static region mask (1=static, 0=dynamic).
+        ssim_weight: Weight for SSIM component (0-1). L1 weight = 1 - ssim_weight.
 
     Returns:
         Scalar loss.
     """
+    # L1 component
     diff = torch.abs(warped.squeeze(1) - reference.squeeze(1))  # (B, H, W)
     masked_diff = diff * mask
     num_pixels = mask.sum().clamp(min=1.0)
-    return masked_diff.sum() / num_pixels
+    l1_loss = masked_diff.sum() / num_pixels
+
+    # SSIM component
+    ssim_loss = _masked_ssim(warped, reference, mask)
+
+    return (1.0 - ssim_weight) * l1_loss + ssim_weight * ssim_loss
 
 
 def compute_mace(pred: torch.Tensor, target: torch.Tensor) -> float:
