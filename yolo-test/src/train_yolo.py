@@ -110,7 +110,8 @@ def run_phase(
 
 def main():
     parser = argparse.ArgumentParser(description="Three-phase YOLO training")
-    parser.add_argument("--config", default="../configs/config.yaml")
+    _default_cfg = str(Path(__file__).parent.parent / "configs" / "config.yaml")
+    parser.add_argument("--config", default=_default_cfg)
     parser.add_argument(
         "--phases", nargs="+", default=["1", "2", "3"],
         choices=["1", "2", "3"],

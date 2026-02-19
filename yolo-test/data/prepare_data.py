@@ -500,7 +500,8 @@ def main():
     parser = argparse.ArgumentParser(
         description="Prepare data for YOLO + keypoint pipeline"
     )
-    parser.add_argument("--config",       default="../configs/config.yaml")
+    _default_cfg = str(Path(__file__).parent.parent / "configs" / "config.yaml")
+    parser.add_argument("--config",       default=_default_cfg)
     parser.add_argument("--format",       default="auto",
                         choices=["auto", "cvat_xml", "coco", "landmark"])
     parser.add_argument("--single-class", action="store_true",

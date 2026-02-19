@@ -290,7 +290,8 @@ def visualise(
 
 def main():
     parser = argparse.ArgumentParser(description="YOLO + keypoint inference pipeline")
-    parser.add_argument("--config",       default="../configs/config.yaml")
+    _default_cfg = str(Path(__file__).parent.parent / "configs" / "config.yaml")
+    parser.add_argument("--config",       default=_default_cfg)
     parser.add_argument("--image",        default=None,  help="Single image path.")
     parser.add_argument("--images-dir",   default=None,  help="Directory of images.")
     parser.add_argument("--yolo-weights", required=True, help="YOLO .pt weights.")

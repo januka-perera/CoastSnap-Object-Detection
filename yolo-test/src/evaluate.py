@@ -199,7 +199,8 @@ def plot_epe_distribution(epes: list, output_path: str):
 
 def main():
     parser = argparse.ArgumentParser(description="Evaluate detection / keypoint models")
-    parser.add_argument("--config",      default="../configs/config.yaml")
+    _default_cfg = str(Path(__file__).parent.parent / "configs" / "config.yaml")
+    parser.add_argument("--config",      default=_default_cfg)
     parser.add_argument("--mode",        default="keypoint",
                         choices=["detection", "keypoint", "pipeline"])
     parser.add_argument("--yolo-weights",default=None)
