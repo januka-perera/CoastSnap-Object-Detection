@@ -75,6 +75,7 @@ def run_phase(
         epochs=phase_cfg["epochs"],
         imgsz=yolo_cfg["imgsz"],
         batch=training_cfg["batch_size"],
+        optimizer="AdamW",
         lr0=phase_cfg["lr0"],
         lrf=0.01,
         freeze=phase_cfg["freeze"],
@@ -100,9 +101,12 @@ def run_phase(
         verbose=True,
     )
 
-    best = Path(project_dir) / name / "weights" / "best.pt"
+    # Use the trainer's own save_dir — avoids issues with ultralytics
+    # prepending 'runs/detect/' to relative project paths.
+    save_dir = Path(model.trainer.save_dir)
+    best = save_dir / "weights" / "best.pt"
     if not best.exists():
-        best = Path(project_dir) / name / "weights" / "last.pt"
+        best = save_dir / "weights" / "last.pt"
 
     print(f"\nPhase '{name}' complete.  Best weights: {best}")
     return best
