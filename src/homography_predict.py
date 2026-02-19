@@ -198,23 +198,22 @@ def predict_homography(
             else:
                 mask_gn = None
 
-        # Scale H_full to GN resolution
-        H_gn = scale_homography_asymmetric(
-            H_composed, working_size,
-            (orig_w, orig_h), gn_size,
-        )
+        # Scale H from network working_size to GN resolution (symmetric —
+        # both ref and target are resized to the same gn_size)
+        H_gn = scale_homography(H_composed, working_size, gn_size)
 
         H_gn_refined = gauss_newton_refine(
             H_gn, ref_gn, target_gn, mask_gn,
             num_iters=gn_iters,
         )
 
-        # Scale refined H back to full resolution
+        # Scale refined H from GN resolution to full resolution (asymmetric —
+        # target and reference may have different original resolutions)
         H_full = scale_homography_asymmetric(
             H_gn_refined,
-            gn_size,             # "working" for GN
-            (orig_w, orig_h),    # target full
-            ref_full_size,       # ref full
+            gn_size,             # GN working resolution
+            (orig_w, orig_h),    # target full resolution
+            ref_full_size,       # reference full resolution
         )
 
         logger.info(f"Gauss-Newton refinement: {gn_iters} iters at {gn_w}x{gn_h}")
