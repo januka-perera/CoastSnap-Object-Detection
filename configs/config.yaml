@@ -85,7 +85,7 @@ homography:
     epochs: 200
   num_iterations: 3  # iterative predict-warp-predict refinement
   gauss_newton:
-    enabled: false
+    enabled: true
     resolution: 1024  # longest edge for GN refinement (higher = more precise)
     num_iters: 15
   real_supervised:
