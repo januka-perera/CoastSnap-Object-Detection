@@ -216,7 +216,14 @@ def gauss_newton_refine(
     ref = (ref_gray * 255).astype(np.uint8) if ref_gray.max() <= 1.0 else ref_gray.astype(np.uint8)
     target = (target_gray * 255).astype(np.uint8) if target_gray.max() <= 1.0 else target_gray.astype(np.uint8)
 
-    H_current = H_init.astype(np.float32).copy()
+    # findTransformECC uses WARP_INVERSE_MAP internally, so it expects
+    # the warp matrix to map template coords -> input coords.
+    # Our H maps target -> reference. We pass H_inv (reference -> target)
+    # and invert the result back.
+    try:
+        H_inv = np.linalg.inv(H_init).astype(np.float32)
+    except np.linalg.LinAlgError:
+        return H_init
 
     criteria = (
         cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT,
@@ -229,14 +236,16 @@ def gauss_newton_refine(
         input_mask = (mask > 0).astype(np.uint8) * 255
 
     try:
-        _, H_refined = cv2.findTransformECC(
-            ref, target, H_current,
+        _, H_inv_refined = cv2.findTransformECC(
+            ref, target, H_inv,
             motionType=cv2.MOTION_HOMOGRAPHY,
             criteria=criteria,
             inputMask=input_mask,
         )
-        return H_refined.astype(np.float64)
-    except cv2.error:
+        H_refined = np.linalg.inv(H_inv_refined.astype(np.float64))
+        H_refined = H_refined / H_refined[2, 2]
+        return H_refined
+    except (cv2.error, np.linalg.LinAlgError):
         # ECC failed to converge — return unchanged
         return H_init
 
