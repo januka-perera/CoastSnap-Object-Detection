@@ -1,0 +1,88 @@
+data:
+  images_dir: "../data/images"
+  annotations_file: "../data/annotations/annotations.xml"
+  yolo_data_dir: "./yolo_data"
+  crops_dir: "./crops"
+  # Class names — must match the order of labels in the annotation file.
+  # For CVAT XML the script reads label names directly from the file,
+  # so this is only used when not passing --single-class.
+  classes:
+    - sign
+  num_classes: 1
+  num_keypoints: 1   # keypoints per detected object
+  train_ratio: 0.70
+  val_ratio: 0.15
+  test_ratio: 0.15
+  seed: 42
+
+yolo:
+  model_weights: "yolov8n.pt"   # downloaded automatically on first run
+  project_dir: "./yolo_runs"
+  imgsz: 640
+  conf_threshold: 0.25
+  iou_threshold: 0.45
+
+  training:
+    batch_size: 8
+    patience: 10           # early-stopping patience (epochs)
+    workers: 4
+
+    # Phase 1 – freeze backbone, train detection head only
+    phase1:
+      name: "phase1_head"
+      epochs: 20
+      lr0: 1.0e-3
+      freeze: 10           # freeze first N backbone layers
+
+    # Phase 2 – unfreeze neck, train neck + head
+    phase2:
+      name: "phase2_neck_head"
+      epochs: 20
+      lr0: 1.0e-4
+      freeze: 0
+
+    # Phase 3 – full fine-tune
+    phase3:
+      name: "phase3_full"
+      epochs: 20
+      lr0: 1.0e-5
+      freeze: 0
+
+  augmentation:
+    fliplr: 0.5
+    degrees: 12.0          # rotation ±12°
+    scale: 0.2             # random scale 0.8–1.2
+    translate: 0.1
+    hsv_h: 0.015
+    hsv_s: 0.3
+    hsv_v: 0.2
+    perspective: 0.0       # disabled – harms coordinate precision
+    mosaic: 0.0            # disabled for small dataset
+
+keypoint:
+  input_size: [224, 224]   # crop is resized to this before the model
+  heatmap_size: [56, 56]   # model output resolution
+  sigma: 2.5               # Gaussian sigma for ground-truth heatmap (pixels)
+  backbone: "resnet18"
+  pretrained: true
+  decoder_channels: [128, 64, 32]
+  checkpoint_dir: "./keypoint_checkpoints"
+
+  training:
+    batch_size: 16
+    weight_decay: 1.0e-4
+    patience: 10
+    workers: 4
+    seed: 42
+
+    # Phase 1 – backbone frozen, decoder only
+    phase1:
+      epochs: 30
+      lr: 1.0e-3
+      freeze_backbone: true
+
+    # Phase 2 – unfreeze last ResNet block
+    phase2:
+      epochs: 20
+      lr: 1.0e-4
+      freeze_backbone: false
