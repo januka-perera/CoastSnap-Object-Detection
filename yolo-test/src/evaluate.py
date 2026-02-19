@@ -172,6 +172,92 @@ def evaluate_keypoint(
 
 
 # ---------------------------------------------------------------------------
+# Detection visualisation
+# ---------------------------------------------------------------------------
+
+def visualise_detections(
+    weights: str,
+    cfg: dict,
+    split: str,
+    out_dir: Path,
+):
+    """
+    Run YOLO predict on every image in the split and save annotated images.
+
+    Draws predicted boxes (green) and ground-truth boxes (red) side by side
+    so misses and false positives are immediately visible.
+    """
+    try:
+        from ultralytics import YOLO
+    except ImportError:
+        print("ERROR: ultralytics not installed.")
+        return
+
+    import cv2
+
+    yolo_cfg    = cfg["yolo"]
+    data_cfg    = cfg["data"]
+    class_names = data_cfg.get("classes", [])
+
+    img_dir = Path(data_cfg["yolo_data_dir"]) / "images" / split
+    lbl_dir = Path(data_cfg["yolo_data_dir"]) / "labels" / split
+    vis_dir = out_dir / f"detections_{split}"
+    vis_dir.mkdir(parents=True, exist_ok=True)
+
+    model      = YOLO(weights)
+    img_paths  = sorted(img_dir.glob("*.jpg")) + sorted(img_dir.glob("*.png"))
+
+    print(f"\nVisualising {len(img_paths)} {split} images → {vis_dir}")
+
+    for img_path in img_paths:
+        img   = cv2.imread(str(img_path))
+        if img is None:
+            continue
+        H, W  = img.shape[:2]
+        canvas = img.copy()
+
+        # ── Ground-truth boxes (red) ──────────────────────────────────────
+        lbl_path = lbl_dir / img_path.with_suffix(".txt").name
+        if lbl_path.exists():
+            for line in lbl_path.read_text().strip().splitlines():
+                parts = line.split()
+                if len(parts) < 5:
+                    continue
+                cls_idx = int(parts[0])
+                cx, cy, bw, bh = map(float, parts[1:5])
+                x1 = int((cx - bw / 2) * W);  y1 = int((cy - bh / 2) * H)
+                x2 = int((cx + bw / 2) * W);  y2 = int((cy + bh / 2) * H)
+                cv2.rectangle(canvas, (x1, y1), (x2, y2), (0, 0, 200), 2)
+                name = class_names[cls_idx] if cls_idx < len(class_names) else str(cls_idx)
+                cv2.putText(canvas, f"GT:{name}", (x1, max(y1 - 6, 14)),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 200), 1)
+
+        # ── Predicted boxes (green) ───────────────────────────────────────
+        results = model.predict(
+            str(img_path),
+            conf=yolo_cfg["conf_threshold"],
+            iou=yolo_cfg["iou_threshold"],
+            verbose=False,
+        )
+        for r in results:
+            if r.boxes is None:
+                continue
+            for box in r.boxes:
+                x1, y1, x2, y2 = box.xyxy[0].cpu().numpy().astype(int)
+                conf    = float(box.conf.item())
+                cls_idx = int(box.cls.item())
+                name    = class_names[cls_idx] if cls_idx < len(class_names) else str(cls_idx)
+                cv2.rectangle(canvas, (x1, y1), (x2, y2), (0, 200, 0), 2)
+                cv2.putText(canvas, f"{name} {conf:.2f}", (x1, y2 + 16),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 200, 0), 1)
+
+        out_path = vis_dir / img_path.name
+        cv2.imwrite(str(out_path), canvas)
+
+    print(f"Saved {len(img_paths)} images.  Red = GT, Green = Predicted.")
+
+
+# ---------------------------------------------------------------------------
 # Plots
 # ---------------------------------------------------------------------------
 
@@ -208,7 +294,9 @@ def main():
     parser.add_argument("--split",       default="test",
                         choices=["train", "val", "test"])
     parser.add_argument("--output-dir",  default="./eval_results")
-    parser.add_argument("--no-subpixel", action="store_true")
+    parser.add_argument("--no-subpixel",   action="store_true")
+    parser.add_argument("--save-images",   action="store_true",
+                        help="Save annotated detection images (GT=red, Pred=green).")
     args = parser.parse_args()
 
     cfg      = load_config(args.config)
@@ -225,6 +313,9 @@ def main():
         data_yaml = str(Path(cfg["data"]["yolo_data_dir"]) / "dataset.yaml")
         det_res   = evaluate_yolo(args.yolo_weights, data_yaml, cfg, split=args.split)
         all_results["detection"] = det_res
+
+        if args.save_images:
+            visualise_detections(args.yolo_weights, cfg, args.split, out_dir)
 
     # ── Keypoint ──────────────────────────────────────────────────────────
     if args.mode in ("keypoint", "pipeline"):
