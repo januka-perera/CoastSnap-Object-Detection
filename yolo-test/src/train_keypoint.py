@@ -9,8 +9,15 @@ Loss: weighted MSE — pixels where target > 0.1 receive higher weight to
 
 Usage
 -----
+    # Train on all classes together (single model)
     python train_keypoint.py --config ../configs/config.yaml
-    python train_keypoint.py --config ../configs/config.yaml --resume ./keypoint_checkpoints/keypoint_best.pt
+
+    # Train a per-class model (only crops for that class)
+    python train_keypoint.py --config ../configs/config.yaml --class-name sign
+
+    # Resume from checkpoint
+    python train_keypoint.py --config ../configs/config.yaml --class-name sign \\
+        --resume ./keypoint_checkpoints/sign_best.pt
 """
 
 import argparse
@@ -193,6 +200,9 @@ def main():
     parser = argparse.ArgumentParser(description="Train keypoint heatmap model")
     _default_cfg = str(Path(__file__).parent.parent / "configs" / "config.yaml")
     parser.add_argument("--config", default=_default_cfg)
+    parser.add_argument("--class-name", default=None,
+                        help="Train on crops for this class only (must match a name "
+                             "in data.classes). Omit to train on all classes.")
     parser.add_argument("--resume", default=None,
                         help="Resume from an existing checkpoint.")
     args = parser.parse_args()
@@ -201,10 +211,24 @@ def main():
     kp_cfg   = cfg["keypoint"]
     data_cfg = cfg["data"]
 
+    # ── Resolve class filter ──────────────────────────────────────────────
+    class_idx  = None
+    class_name = args.class_name
+    if class_name is not None:
+        classes = data_cfg.get("classes", [])
+        if class_name not in classes:
+            print(f"ERROR: '{class_name}' not in data.classes {classes}")
+            sys.exit(1)
+        class_idx = classes.index(class_name)
+        print(f"Filtering to class '{class_name}' (idx={class_idx})")
+
     crops_dir       = Path(data_cfg["crops_dir"])
     checkpoint_dir  = Path(kp_cfg["checkpoint_dir"])
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
-    checkpoint_path = checkpoint_dir / "keypoint_best.pt"
+
+    # Per-class checkpoint or shared checkpoint
+    stem            = f"{class_name}_best" if class_name else "keypoint_best"
+    checkpoint_path = checkpoint_dir / f"{stem}.pt"
 
     input_size   = tuple(kp_cfg["input_size"])
     heatmap_size = tuple(kp_cfg["heatmap_size"])
@@ -218,10 +242,12 @@ def main():
 
     # ── Datasets ─────────────────────────────────────────────────────────
     train_ds = KeypointCropDataset(
-        crops_dir / "train", input_size, heatmap_size, sigma, augment=True
+        crops_dir / "train", input_size, heatmap_size, sigma,
+        augment=True, class_idx=class_idx,
     )
     val_ds = KeypointCropDataset(
-        crops_dir / "val", input_size, heatmap_size, sigma, augment=False
+        crops_dir / "val", input_size, heatmap_size, sigma,
+        augment=False, class_idx=class_idx,
     )
     print(f"Train samples: {len(train_ds)}  |  Val samples: {len(val_ds)}")
 

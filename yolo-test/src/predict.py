@@ -103,6 +103,40 @@ def load_keypoint_model(
     return model
 
 
+def load_per_class_models(
+    kp_weights_dir: str,
+    class_names: list,
+    decoder_channels: list,
+    device: torch.device,
+) -> dict:
+    """
+    Load one keypoint model per class from *kp_weights_dir*.
+
+    For each class name, looks for  ``{kp_weights_dir}/{class_name}_best.pt``.
+    Falls back to ``keypoint_best.pt`` if a per-class file is missing.
+
+    Returns
+    -------
+    dict mapping class_name → KeypointHeatmapModel
+    """
+    weights_dir = Path(kp_weights_dir)
+    fallback    = weights_dir / "keypoint_best.pt"
+    models: dict = {}
+    for name in class_names:
+        candidate = weights_dir / f"{name}_best.pt"
+        if candidate.exists():
+            path = candidate
+        elif fallback.exists():
+            print(f"  [WARN] No per-class weights for '{name}', using {fallback.name}")
+            path = fallback
+        else:
+            print(f"  [WARN] No weights found for '{name}' — skipping")
+            continue
+        print(f"  Loading keypoint model for '{name}': {path}")
+        models[name] = load_keypoint_model(str(path), decoder_channels, device)
+    return models
+
+
 # ---------------------------------------------------------------------------
 # Detection
 # ---------------------------------------------------------------------------
@@ -193,7 +227,7 @@ def predict_keypoint(
 def run_pipeline(
     image_path: str,
     yolo_model,
-    kp_model: KeypointHeatmapModel,
+    kp_models,
     cfg: dict,
     device: torch.device,
     top_k: int = 1,
@@ -204,13 +238,18 @@ def run_pipeline(
 
     Parameters
     ----------
-    top_k : Number of highest-confidence detections to process.
-            -1 processes all detections.
+    kp_models : Either a single KeypointHeatmapModel (applied to every detection)
+                or a dict mapping class_name → KeypointHeatmapModel for per-class routing.
+    top_k     : Number of highest-confidence detections to process (-1 = all).
     """
-    yolo_cfg  = cfg["yolo"]
-    kp_cfg    = cfg["keypoint"]
-    data_cfg  = cfg["data"]
+    yolo_cfg    = cfg["yolo"]
+    kp_cfg      = cfg["keypoint"]
+    data_cfg    = cfg["data"]
     class_names = data_cfg.get("classes", [])
+
+    # Normalise kp_models to a dict for uniform handling
+    if not isinstance(kp_models, dict):
+        kp_models = {"*": kp_models}   # wildcard: same model for every class
 
     image = cv2.imread(image_path)
     if image is None:
@@ -225,7 +264,17 @@ def run_pipeline(
     )
 
     if not dets:
-        return []
+        if yolo_cfg.get("fallback_full_image", False):
+            H, W = image.shape[:2]
+            fallback_det = Detection(
+                class_id=0, class_name=class_names[0] if class_names else "sign",
+                confidence=0.0,
+                x1=0, y1=0, x2=W, y2=H,
+            )
+            print(f"  [WARN] No detection in {image_path} — using full image fallback")
+            dets = [fallback_det]
+        else:
+            return []
 
     if top_k > 0:
         dets = sorted(dets, key=lambda d: d.confidence, reverse=True)[:top_k]
@@ -235,8 +284,17 @@ def run_pipeline(
 
     results = []
     for det in dets:
+        # Route to per-class model, then wildcard, then first available
+        model = (
+            kp_models.get(det.class_name)
+            or kp_models.get("*")
+            or next(iter(kp_models.values()), None)
+        )
+        if model is None:
+            print(f"  [WARN] No keypoint model for class '{det.class_name}' — skipping")
+            continue
         r = predict_keypoint(
-            kp_model, image, det,
+            model, image, det,
             input_size=input_size,
             heatmap_size=heatmap_size,
             device=device,
@@ -291,18 +349,25 @@ def visualise(
 def main():
     parser = argparse.ArgumentParser(description="YOLO + keypoint inference pipeline")
     _default_cfg = str(Path(__file__).parent.parent / "configs" / "config.yaml")
-    parser.add_argument("--config",       default=_default_cfg)
-    parser.add_argument("--image",        default=None,  help="Single image path.")
-    parser.add_argument("--images-dir",   default=None,  help="Directory of images.")
-    parser.add_argument("--yolo-weights", required=True, help="YOLO .pt weights.")
-    parser.add_argument("--kp-weights",   required=True, help="Keypoint model .pt.")
-    parser.add_argument("--output-dir",   default="./predictions")
+    parser.add_argument("--config",         default=_default_cfg)
+    parser.add_argument("--image",          default=None,  help="Single image path.")
+    parser.add_argument("--images-dir",     default=None,  help="Directory of images.")
+    parser.add_argument("--yolo-weights",   required=True, help="YOLO .pt weights.")
+    parser.add_argument("--kp-weights",     default=None,
+                        help="Single keypoint model .pt (used for all classes).")
+    parser.add_argument("--kp-weights-dir", default=None,
+                        help="Directory containing per-class checkpoints "
+                             "named <class_name>_best.pt.")
+    parser.add_argument("--output-dir",     default="./predictions")
     parser.add_argument("--top-k",  type=int, default=1,
                         help="Top-k detections per image (-1 = all).")
     parser.add_argument("--no-subpixel",  action="store_true")
     parser.add_argument("--show",         action="store_true",
                         help="Display each prediction interactively.")
     args = parser.parse_args()
+
+    if args.kp_weights is None and args.kp_weights_dir is None:
+        parser.error("Provide --kp-weights (single model) or --kp-weights-dir (per-class).")
 
     cfg    = load_config(args.config)
     kp_cfg = cfg["keypoint"]
@@ -314,11 +379,21 @@ def main():
         cfg["yolo"]["conf_threshold"],
         cfg["yolo"]["iou_threshold"],
     )
-    kp_model = load_keypoint_model(
-        args.kp_weights,
-        decoder_channels=kp_cfg.get("decoder_channels", [128, 64, 32]),
-        device=device,
-    )
+
+    decoder_channels = kp_cfg.get("decoder_channels", [128, 64, 32])
+
+    if args.kp_weights_dir:
+        class_names = cfg["data"].get("classes", [])
+        kp_models = load_per_class_models(
+            args.kp_weights_dir, class_names, decoder_channels, device
+        )
+        if not kp_models:
+            print("ERROR: No keypoint models loaded from --kp-weights-dir.")
+            sys.exit(1)
+    else:
+        kp_models = load_keypoint_model(
+            args.kp_weights, decoder_channels=decoder_channels, device=device
+        )
 
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -340,7 +415,7 @@ def main():
 
     for img_path in image_paths:
         results  = run_pipeline(
-            img_path, yolo_model, kp_model, cfg, device,
+            img_path, yolo_model, kp_models, cfg, device,
             top_k=args.top_k, subpixel=not args.no_subpixel,
         )
         stem     = Path(img_path).stem

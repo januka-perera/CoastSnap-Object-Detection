@@ -54,7 +54,15 @@ class KeypointCropDataset(Dataset):
         sigma: float = 2.5,
         augment: bool = False,
         seed: int = 42,
+        class_idx: int = None,
     ):
+        """
+        Parameters
+        ----------
+        class_idx : If given, only load crops whose filename ends with
+                    ``_<class_idx>.jpg`` (e.g. ``_0.jpg`` for class 0).
+                    None loads all crops regardless of class.
+        """
         self.crops_dir   = Path(crops_dir)
         self.input_h, self.input_w = input_size
         self.hm_h,    self.hm_w   = heatmap_size
@@ -64,9 +72,17 @@ class KeypointCropDataset(Dataset):
         self.np_rng  = np.random.default_rng(seed)
 
         img_dir = self.crops_dir / "images"
-        self.img_paths = sorted(img_dir.glob("*.jpg"))
-        if not self.img_paths:
-            self.img_paths = sorted(img_dir.glob("*.png"))
+        all_paths = sorted(img_dir.glob("*.jpg"))
+        if not all_paths:
+            all_paths = sorted(img_dir.glob("*.png"))
+
+        # Filter to a single class if requested.
+        # Crop filenames follow the pattern: <image_stem>_<cls_idx>.jpg
+        if class_idx is not None:
+            suffix = f"_{class_idx}.jpg"
+            self.img_paths = [p for p in all_paths if p.name.endswith(suffix)]
+        else:
+            self.img_paths = all_paths
 
         lbl_dir = self.crops_dir / "labels"
         self.labels: list = []

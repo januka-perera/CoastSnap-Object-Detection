@@ -21,6 +21,7 @@ yolo:
   imgsz: 640
   conf_threshold: 0.10
   iou_threshold: 0.45
+  fallback_full_image: false   # set true to run keypoint on full image when YOLO misses
 
   training:
     batch_size: 8

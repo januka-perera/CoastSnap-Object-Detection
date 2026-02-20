@@ -97,6 +97,7 @@ def evaluate_keypoint(
     cfg: dict,
     split: str = "test",
     subpixel: bool = True,
+    class_name: str = None,
 ) -> dict:
     """
     Evaluate the keypoint model on pre-cropped images.
@@ -104,6 +105,10 @@ def evaluate_keypoint(
     Returns a dict with:
         n_samples, epe_mean, epe_std, median_epe, rmse, pck_5, pck_10
     where EPE is measured in heatmap pixels.
+
+    Parameters
+    ----------
+    class_name : If given, only evaluate crops for this class (uses class_idx filter).
     """
     from dataset       import KeypointCropDataset
     from torch.utils.data import DataLoader
@@ -111,12 +116,25 @@ def evaluate_keypoint(
     kp_cfg   = cfg["keypoint"]
     data_cfg = cfg["data"]
 
+    # Resolve class index for per-class filtering
+    class_idx = None
+    if class_name is not None:
+        classes = data_cfg.get("classes", [])
+        if class_name not in classes:
+            print(f"ERROR: '{class_name}' not in data.classes {classes}")
+            sys.exit(1)
+        class_idx = classes.index(class_name)
+        print(f"Evaluating class '{class_name}' (idx={class_idx})")
+
     crops_dir    = Path(data_cfg["crops_dir"]) / split
     input_size   = tuple(kp_cfg["input_size"])
     heatmap_size = tuple(kp_cfg["heatmap_size"])
     sigma        = kp_cfg["sigma"]
 
-    dataset = KeypointCropDataset(crops_dir, input_size, heatmap_size, sigma, augment=False)
+    dataset = KeypointCropDataset(
+        crops_dir, input_size, heatmap_size, sigma,
+        augment=False, class_idx=class_idx,
+    )
     loader  = torch.utils.data.DataLoader(dataset, batch_size=16, shuffle=False, num_workers=2)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -267,6 +285,7 @@ def visualise_keypoints(
     split: str,
     out_dir: Path,
     subpixel: bool = True,
+    class_name: str = None,
 ):
     """
     For every crop in the split:
@@ -298,9 +317,21 @@ def visualise_keypoints(
     model.load_state_dict(torch.load(kp_weights, map_location=device))
     model.eval().to(device)
 
+    # Resolve class index for filename filtering
+    class_idx = None
+    if class_name is not None:
+        classes = cfg["data"].get("classes", [])
+        if class_name in classes:
+            class_idx = classes.index(class_name)
+
     hm_h, hm_w   = heatmap_size
     in_h, in_w   = input_size
-    img_paths    = sorted((crops_dir / "images").glob("*.jpg"))
+    all_img_paths = sorted((crops_dir / "images").glob("*.jpg"))
+    if class_idx is not None:
+        suffix    = f"_{class_idx}.jpg"
+        img_paths = [p for p in all_img_paths if p.name.endswith(suffix)]
+    else:
+        img_paths = all_img_paths
     lbl_dir      = crops_dir / "labels"
 
     _MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
@@ -415,6 +446,8 @@ def main():
                         choices=["detection", "keypoint", "pipeline"])
     parser.add_argument("--yolo-weights",default=None)
     parser.add_argument("--kp-weights",  default=None)
+    parser.add_argument("--class-name",  default=None,
+                        help="Evaluate a per-class keypoint model on crops for this class only.")
     parser.add_argument("--split",       default="test",
                         choices=["train", "val", "test"])
     parser.add_argument("--output-dir",  default="./eval_results")
@@ -450,14 +483,19 @@ def main():
             args.kp_weights, cfg,
             split=args.split,
             subpixel=not args.no_subpixel,
+            class_name=args.class_name,
         )
         all_results["keypoint"] = kp_res
-        plot_epe_distribution(epes, str(out_dir / f"epe_dist_{args.split}.png"))
+        suffix = f"_{args.class_name}" if args.class_name else ""
+        plot_epe_distribution(
+            epes, str(out_dir / f"epe_dist_{args.split}{suffix}.png")
+        )
 
         if args.save_images:
             visualise_keypoints(
                 args.kp_weights, cfg, args.split, out_dir,
                 subpixel=not args.no_subpixel,
+                class_name=args.class_name,
             )
 
     # Save JSON summary
