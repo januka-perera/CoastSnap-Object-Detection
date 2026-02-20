@@ -149,7 +149,7 @@ def run_phase(
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
         optimiser, mode="min", patience=max(3, patience // 3), factor=0.5
     )
-    scaler = torch.cuda.amp.GradScaler(enabled=(device.type == "cuda"))
+    scaler = torch.amp.GradScaler("cuda", enabled=(device.type == "cuda"))
 
     best_loss       = float("inf")
     epochs_no_improv = 0

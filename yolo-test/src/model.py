@@ -104,9 +104,9 @@ class KeypointHeatmapModel(nn.Module):
         self.dec3 = DecoderBlock(d1,  128, d2)   # skip ← enc2
         self.dec2 = DecoderBlock(d2,   64, d3)   # skip ← enc1
 
-        # Final head: one more ×2 upsample → (H/4, W/4) = (56, 56) for 224-px input
+        # Final head: dec2 already outputs at stride 4 = (56, 56) for 224-px input.
+        # No further upsampling needed.
         self.head = nn.Sequential(
-            nn.Upsample(scale_factor=2, mode="bilinear", align_corners=False),
             ConvBnRelu(d3, d3),
             nn.Conv2d(d3, 1, kernel_size=1),
             nn.Sigmoid(),
