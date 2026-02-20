@@ -258,6 +258,130 @@ def visualise_detections(
 
 
 # ---------------------------------------------------------------------------
+# Keypoint visualisation
+# ---------------------------------------------------------------------------
+
+def visualise_keypoints(
+    kp_weights: str,
+    cfg: dict,
+    split: str,
+    out_dir: Path,
+    subpixel: bool = True,
+):
+    """
+    For every crop in the split:
+      - Predict the keypoint heatmap
+      - Draw GT point (red cross) and predicted point (green dot) on the crop
+      - Save the heatmap as a colour overlay beside the crop
+
+    Output layout per image  (side by side):
+        [ crop with points ]  |  [ heatmap colourmap ]
+    """
+    import cv2
+
+    kp_cfg   = cfg["keypoint"]
+    data_cfg = cfg["data"]
+
+    crops_dir    = Path(data_cfg["crops_dir"]) / split
+    input_size   = tuple(kp_cfg["input_size"])
+    heatmap_size = tuple(kp_cfg["heatmap_size"])
+    sigma        = kp_cfg["sigma"]
+
+    vis_dir = out_dir / f"keypoints_{split}"
+    vis_dir.mkdir(parents=True, exist_ok=True)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model  = KeypointHeatmapModel(
+        pretrained=False,
+        decoder_channels=kp_cfg.get("decoder_channels", [128, 64, 32]),
+    )
+    model.load_state_dict(torch.load(kp_weights, map_location=device))
+    model.eval().to(device)
+
+    hm_h, hm_w   = heatmap_size
+    in_h, in_w   = input_size
+    img_paths    = sorted((crops_dir / "images").glob("*.jpg"))
+    lbl_dir      = crops_dir / "labels"
+
+    _MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+    _STD  = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+
+    print(f"\nVisualising {len(img_paths)} keypoint crops → {vis_dir}")
+
+    for img_path in img_paths:
+        # ── Load crop ────────────────────────────────────────────────────
+        crop_bgr = cv2.imread(str(img_path))
+        if crop_bgr is None:
+            continue
+        crop_h, crop_w = crop_bgr.shape[:2]
+
+        # ── Ground-truth keypoint ─────────────────────────────────────────
+        lbl_path = lbl_dir / img_path.with_suffix(".txt").name
+        gt_x_norm, gt_y_norm = 0.5, 0.5
+        if lbl_path.exists():
+            parts = lbl_path.read_text().strip().split()
+            gt_x_norm, gt_y_norm = float(parts[0]), float(parts[1])
+
+        # ── Predict heatmap ───────────────────────────────────────────────
+        inp = cv2.resize(crop_bgr, (in_w, in_h))
+        inp = cv2.cvtColor(inp, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
+        inp = (inp - _MEAN) / _STD
+        t   = torch.from_numpy(inp.transpose(2, 0, 1)).unsqueeze(0).to(device)
+
+        with torch.no_grad():
+            hm = model(t)
+        hm_np = hm.squeeze().cpu().numpy()          # (hm_h, hm_w)
+
+        # ── Extract predicted coordinate ──────────────────────────────────
+        pred_x_norm, pred_y_norm = extract_coordinate(
+            hm_np, hm_h, hm_w, subpixel=subpixel
+        )
+
+        # ── Draw on a resized version of the crop ─────────────────────────
+        canvas = cv2.resize(crop_bgr, (in_w, in_h))
+
+        # GT point — red cross
+        gx = int(gt_x_norm   * in_w)
+        gy = int(gt_y_norm   * in_h)
+        cv2.drawMarker(canvas, (gx, gy), (0, 0, 220),
+                       cv2.MARKER_CROSS, markerSize=18, thickness=2)
+
+        # Predicted point — green filled circle
+        px = int(pred_x_norm * in_w)
+        py = int(pred_y_norm * in_h)
+        cv2.circle(canvas, (px, py), 6,  (0, 210, 0), -1)
+        cv2.circle(canvas, (px, py), 8,  (255, 255, 255), 1)
+
+        # EPE in heatmap pixels
+        epe = np.hypot((pred_x_norm - gt_x_norm) * hm_w,
+                       (pred_y_norm - gt_y_norm) * hm_h)
+        cv2.putText(canvas, f"EPE {epe:.1f}px", (4, in_h - 6),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+
+        # Legend
+        cv2.putText(canvas, "GT",   (4, 16),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 220), 1)
+        cv2.putText(canvas, "Pred", (4, 34),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 210, 0), 1)
+
+        # ── Heatmap colourmap panel ────────────────────────────────────────
+        hm_norm  = (hm_np - hm_np.min()) / (hm_np.max() - hm_np.min() + 1e-8)
+        hm_uint8 = (hm_norm * 255).astype(np.uint8)
+        hm_color = cv2.applyColorMap(hm_uint8, cv2.COLORMAP_JET)
+        hm_color = cv2.resize(hm_color, (in_w, in_h))
+
+        # Mark predicted peak on heatmap too
+        cv2.circle(hm_color, (px, py), 6,  (255, 255, 255), -1)
+        cv2.circle(hm_color, (px, py), 8,  (0, 0, 0), 1)
+
+        # ── Combine side by side and save ─────────────────────────────────
+        combined = np.concatenate([canvas, hm_color], axis=1)
+        cv2.imwrite(str(vis_dir / img_path.name), combined)
+
+    print(f"Saved {len(img_paths)} images.  Red cross = GT, Green dot = Predicted.")
+
+
+# ---------------------------------------------------------------------------
 # Plots
 # ---------------------------------------------------------------------------
 
@@ -329,6 +453,12 @@ def main():
         )
         all_results["keypoint"] = kp_res
         plot_epe_distribution(epes, str(out_dir / f"epe_dist_{args.split}.png"))
+
+        if args.save_images:
+            visualise_keypoints(
+                args.kp_weights, cfg, args.split, out_dir,
+                subpixel=not args.no_subpixel,
+            )
 
     # Save JSON summary
     summary_path = out_dir / f"eval_{args.split}.json"
