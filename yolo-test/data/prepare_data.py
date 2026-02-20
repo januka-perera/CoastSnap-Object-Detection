@@ -157,11 +157,17 @@ def parse_cvat_xml(xml_path: Path) -> tuple:
     """
     Parse a CVAT 1.1 XML export.
 
+    Reads both <box> and <points> elements.  Points are matched to boxes by
+    a label convention: a box labelled "sign" is paired with points labelled
+    "sign-point" (i.e. "<box-label>-point").  If no matching point exists for
+    a box, the keypoint falls back to the bbox centre.
+
     Returns
     -------
-    images     : list of dicts with keys: name, width, height, boxes
-                 boxes: list of dicts with keys: label, x1, y1, x2, y2
-    all_labels : sorted list of unique label names found in <box> elements
+    images     : list of dicts — name, width, height, boxes
+                 each box dict: label, x1, y1, x2, y2, kp_u, kp_v
+                 kp_u / kp_v: annotated keypoint in image pixel space
+    all_labels : sorted list of unique box label names
     """
     tree = ET.parse(xml_path)
     root = tree.getroot()
@@ -173,18 +179,41 @@ def parse_cvat_xml(xml_path: Path) -> tuple:
         name   = img_el.get("name")
         width  = int(img_el.get("width"))
         height = int(img_el.get("height"))
-        boxes  = []
 
+        # Parse all <points> elements into a dict keyed by label
+        # CVAT stores multiple points as "x1,y1;x2,y2;..." — take the first
+        points_by_label: dict = {}
+        for pt_el in img_el.findall("points"):
+            pt_label  = pt_el.get("label")
+            raw       = pt_el.get("points", "")
+            first_pt  = raw.split(";")[0]          # take first point only
+            px, py    = map(float, first_pt.split(","))
+            points_by_label[pt_label] = (px, py)
+
+        # Parse <box> elements and pair with their keypoint
+        boxes = []
         for box_el in img_el.findall("box"):
             label = box_el.get("label")
             x1    = float(box_el.get("xtl"))
             y1    = float(box_el.get("ytl"))
             x2    = float(box_el.get("xbr"))
             y2    = float(box_el.get("ybr"))
-            boxes.append({"label": label, "x1": x1, "y1": y1, "x2": x2, "y2": y2})
+
+            # Look for a matching point: "sign" → "sign-point"
+            pt_label       = f"{label}-point"
+            kp_u, kp_v     = points_by_label.get(
+                pt_label,
+                ((x1 + x2) / 2, (y1 + y2) / 2),   # fallback: bbox centre
+            )
+
+            boxes.append({
+                "label": label,
+                "x1": x1, "y1": y1, "x2": x2, "y2": y2,
+                "kp_u": kp_u, "kp_v": kp_v,
+            })
             all_labels.add(label)
 
-        if boxes:                        # skip images with no annotations
+        if boxes:
             images.append({"name": name, "width": width, "height": height, "boxes": boxes})
 
     return images, sorted(all_labels)
@@ -204,8 +233,8 @@ def prepare_from_cvat_xml(
     """
     Convert CVAT XML annotations to YOLO format + crops.
 
-    Keypoint for each crop = centre of its bounding box
-    (since CVAT XML has no explicit keypoint annotations).
+    Keypoint for each crop = annotated <points> coordinate when present,
+    otherwise falls back to the bbox centre.
     """
     images, xml_labels = parse_cvat_xml(xml_path)
     print(f"  Parsed {len(images)} annotated images, labels: {xml_labels}")
@@ -275,15 +304,16 @@ def prepare_from_cvat_xml(
             yolo_lines.append(f"{cls_idx} {cx:.6f} {cy:.6f} {wn:.6f} {hn:.6f}")
             total_boxes += 1
 
-            # Crop for keypoint model — keypoint = bbox centre
+            # Crop for keypoint model — use annotated point if available,
+            # otherwise bbox centre (handled in parse_cvat_xml)
             if img_bgr is None:
                 img_bgr = cv2.imread(str(src))
 
             if img_bgr is not None:
                 ix1, iy1 = int(x1), int(y1)
                 ix2, iy2 = int(x2), int(y2)
-                kp_u = x1 + bw / 2       # centre x in image space
-                kp_v = y1 + bh / 2       # centre y in image space
+                kp_u = box["kp_u"]
+                kp_v = box["kp_v"]
                 stem  = Path(fname).stem
                 cname = f"{stem}_{cls_idx}.jpg"
                 save_crop(
