@@ -216,6 +216,17 @@ def parse_cvat_xml(xml_path: Path) -> tuple:
         if boxes:
             images.append({"name": name, "width": width, "height": height, "boxes": boxes})
 
+    # Report how many images had annotated keypoints vs bbox-centre fallback
+    n_with_pts  = sum(
+        1 for img in images
+        for box in img["boxes"]
+        if (box["kp_u"], box["kp_v"]) != ((box["x1"] + box["x2"]) / 2,
+                                           (box["y1"] + box["y2"]) / 2)
+    )
+    n_total = sum(len(img["boxes"]) for img in images)
+    print(f"  Keypoints: {n_with_pts}/{n_total} boxes have annotated points "
+          f"({n_total - n_with_pts} using bbox-centre fallback)")
+
     return images, sorted(all_labels)
 
 
