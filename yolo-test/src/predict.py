@@ -230,17 +230,19 @@ def run_pipeline(
     kp_models,
     cfg: dict,
     device: torch.device,
-    top_k: int = 1,
     subpixel: bool = True,
 ) -> list:
     """
     Run full detection + keypoint pipeline on one image.
 
+    For each class, selects the single highest-confidence detection and
+    predicts its keypoint.  With two classes (sign, building-1) this
+    produces exactly two KeypointResult objects per image.
+
     Parameters
     ----------
     kp_models : Either a single KeypointHeatmapModel (applied to every detection)
                 or a dict mapping class_name → KeypointHeatmapModel for per-class routing.
-    top_k     : Number of highest-confidence detections to process (-1 = all).
     """
     yolo_cfg    = cfg["yolo"]
     kp_cfg      = cfg["keypoint"]
@@ -276,8 +278,15 @@ def run_pipeline(
         else:
             return []
 
-    if top_k > 0:
-        dets = sorted(dets, key=lambda d: d.confidence, reverse=True)[:top_k]
+    # Always keep the single highest-confidence detection per class.
+    # This means if both "sign" and "building-1" are detected, both are
+    # processed independently — one keypoint prediction each.
+    best_per_class: dict = {}
+    for d in dets:
+        if (d.class_name not in best_per_class
+                or d.confidence > best_per_class[d.class_name].confidence):
+            best_per_class[d.class_name] = d
+    dets = list(best_per_class.values())
 
     input_size   = tuple(kp_cfg["input_size"])
     heatmap_size = tuple(kp_cfg["heatmap_size"])
@@ -359,8 +368,6 @@ def main():
                         help="Directory containing per-class checkpoints "
                              "named <class_name>_best.pt.")
     parser.add_argument("--output-dir",     default="./predictions")
-    parser.add_argument("--top-k",  type=int, default=1,
-                        help="Top-k detections per image (-1 = all).")
     parser.add_argument("--no-subpixel",  action="store_true")
     parser.add_argument("--show",         action="store_true",
                         help="Display each prediction interactively.")
@@ -416,7 +423,7 @@ def main():
     for img_path in image_paths:
         results  = run_pipeline(
             img_path, yolo_model, kp_models, cfg, device,
-            top_k=args.top_k, subpixel=not args.no_subpixel,
+            subpixel=not args.no_subpixel,
         )
         stem     = Path(img_path).stem
         out_path = str(out_dir / f"{stem}_pred.jpg")
