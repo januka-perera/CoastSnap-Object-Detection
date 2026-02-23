@@ -53,13 +53,13 @@ yolo:
   augmentation:
     fliplr: 0.5
     degrees: 12.0          # rotation ±12°
-    scale: 0.2             # random scale 0.8–1.2
+    scale: 0.4     #0.2 before        # random scale 0.8–1.2
     translate: 0.1
-    hsv_h: 0.015
-    hsv_s: 0.3
-    hsv_v: 0.2
+    hsv_h: 0.030 # 0.015 before
+    hsv_s: 0.5   # 0.3 before
+    hsv_v: 0.4  # 0.2 before
     perspective: 0.0       # disabled – harms coordinate precision
-    mosaic: 0.0            # disabled for small dataset
+    mosaic: 0.5         # 0.0 beore   # disabled for small dataset
 
 keypoint:
   input_size: [224, 224]   # crop is resized to this before the model
