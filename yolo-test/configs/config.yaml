@@ -9,6 +9,7 @@ data:
   classes:
     - sign
     - building-1
+    - building-2
   num_classes: 2
   num_keypoints: 1   # keypoints per detected object
   train_ratio: 0.70
