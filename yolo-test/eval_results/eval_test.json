@@ -1,17 +1,11 @@
 {
-  "detection": {
-    "mAP50": 0.9374,
-    "mAP50_95": 0.5420425134865134,
-    "precision": 1.0,
-    "recall": 0.875
-  },
   "keypoint": {
-    "n_samples": 16,
-    "epe_mean": 1.0168347849124122,
-    "epe_std": 0.35103436037946323,
-    "median_epe": 0.9956539994107152,
-    "rmse": 1.0757221304662696,
-    "pck_5": 1.0,
-    "pck_10": 1.0
+    "n_samples": 0,
+    "epe_mean": NaN,
+    "epe_std": NaN,
+    "median_epe": NaN,
+    "rmse": NaN,
+    "pck_5": NaN,
+    "pck_10": NaN
   }
 }
