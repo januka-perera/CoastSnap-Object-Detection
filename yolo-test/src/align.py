@@ -163,13 +163,13 @@ def align_image(
     # src (query pixel space) → dst (reference pixel space)
     # Both sets of coordinates are absolute pixels in their respective images,
     # so different resolutions are handled correctly.
-    H, mask = cv2.findHomography(
+    M, mask = cv2.estimateAffine2D(
         src_pts, dst_pts,
         cv2.RANSAC,
         ransacReprojThreshold=ransac_reproj_threshold,
     )
 
-    if H is None:
+    if M is None:
         print(f"  [SKIP] {stem}: findHomography returned None (degenerate configuration?)")
         return False
 
@@ -190,7 +190,7 @@ def align_image(
         return False
 
     ref_W, ref_H = ref_size
-    aligned = cv2.warpPerspective(query_img, H, (ref_W, ref_H))
+    aligned = cv2.warpAffine(query_img, M, (ref_W, ref_H))
 
     cv2.imwrite(output_path, aligned)
     return True
