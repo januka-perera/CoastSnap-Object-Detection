@@ -10,7 +10,7 @@ data:
     - sign
     - building-1
     - building-2
-    - stair-1
+    - vent
   num_classes: 4
   num_keypoints: 1   # keypoints per detected object
   train_ratio: 0.70
