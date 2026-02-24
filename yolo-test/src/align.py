@@ -223,9 +223,9 @@ def main():
                         help="Directory of per-class keypoint models "
                              "(<class_name>_best.pt).")
     parser.add_argument("--output-dir",          default="./aligned")
-    parser.add_argument("--min-points",          type=int, default=4,
+    parser.add_argument("--min-points",          type=int, default=3,
                         help="Minimum keypoint matches required for homography (≥4).")
-    parser.add_argument("--ransac-threshold",    type=float, default=5.0,
+    parser.add_argument("--ransac-threshold",    type=float, default=25.0,
                         help="RANSAC reprojection error threshold in pixels.")
     parser.add_argument("--no-subpixel",         action="store_true")
     args = parser.parse_args()
