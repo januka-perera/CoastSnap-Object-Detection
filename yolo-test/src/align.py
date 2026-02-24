@@ -103,7 +103,7 @@ def align_image(
     device: torch.device,
     output_path: str,
     min_points: int = 4,
-    ransac_reproj_threshold: float = 5.0,
+    ransac_reproj_threshold: float = 25.0,
     subpixel: bool = True,
 ) -> bool:
     """
@@ -165,7 +165,8 @@ def align_image(
     # so different resolutions are handled correctly.
     M, mask = cv2.estimateAffine2D(
         src_pts, dst_pts,
-        cv2.RANSAC
+        cv2.RANSAC,
+        ransacReprojThreshold=ransac_reproj_threshold
     )
 
     if M is None:
