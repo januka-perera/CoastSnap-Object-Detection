@@ -21,7 +21,7 @@ data:
 yolo:
   model_weights: "yolov8n.pt"   # downloaded automatically on first run
   project_dir: "./yolo_runs"
-  imgsz: 640
+  imgsz: 1280
   conf_threshold: 0.05
   iou_threshold: 0.45
   fallback_full_image: false   # set true to run keypoint on full image when YOLO misses
