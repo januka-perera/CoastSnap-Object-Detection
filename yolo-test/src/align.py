@@ -165,8 +165,7 @@ def align_image(
     # so different resolutions are handled correctly.
     M, mask = cv2.estimateAffine2D(
         src_pts, dst_pts,
-        cv2.RANSAC,
-        ransacReprojThreshold=ransac_reproj_threshold,
+        cv2.RANSAC
     )
 
     if M is None:
