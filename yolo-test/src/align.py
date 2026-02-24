@@ -234,8 +234,8 @@ def main():
         parser.error("Provide --kp-weights (single model) or --kp-weights-dir (per-class).")
     if args.image is None and args.images_dir is None:
         parser.error("Provide --image or --images-dir.")
-    if args.min_points < 4:
-        parser.error("--min-points must be ≥ 4 for homography.")
+    if args.min_points < 3:
+        parser.error("--min-points must be ≥ 4 for affine.")
 
     cfg    = load_config(args.config)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
