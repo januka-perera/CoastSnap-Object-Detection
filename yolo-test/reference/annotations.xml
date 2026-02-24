@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<annotations>
+  <version>1.1</version>
+  <meta>
+    <job>
+      <id>3663485</id>
+      <size>1</size>
+      <mode>annotation</mode>
+      <overlap>0</overlap>
+      <bugtracker></bugtracker>
+      <created>2026-02-24 04:09:18.002222+00:00</created>
+      <updated>2026-02-24 04:12:10.657206+00:00</updated>
+      <subset>default</subset>
+      <start_frame>0</start_frame>
+      <stop_frame>0</stop_frame>
+      <frame_filter></frame_filter>
+      <segments>
+        <segment>
+          <id>3663104</id>
+          <start>0</start>
+          <stop>0</stop>
+          <url>https://app.cvat.ai/api/jobs/3663485/dataset/export/api/jobs/3663485</url>
+        </segment>
+      </segments>
+      <owner>
+        <username>januka.perera</username>
+        <email>januka.perera@unsw.edu.au</email>
+      </owner>
+      <assignee></assignee>
+      <labels>
+        <label>
+          <name>sign-point</name>
+          <color>#89846f</color>
+          <type>points</type>
+          <attributes>
+          </attributes>
+        </label>
+        <label>
+          <name>building-1-point</name>
+          <color>#690d16</color>
+          <type>points</type>
+          <attributes>
+          </attributes>
+        </label>
+        <label>
+          <name>buildiing-2-point</name>
+          <color>#bacfe2</color>
+          <type>points</type>
+          <attributes>
+          </attributes>
+        </label>
+        <label>
+          <name>vent-point</name>
+          <color>#7cad78</color>
+          <type>points</type>
+          <attributes>
+          </attributes>
+        </label>
+      </labels>
+    </job>
+    <dumped>2026-02-24 04:12:21.292040+00:00</dumped>
+  </meta>
+  <image id="0" name="1577820840.Wed.Jan.01_05_34_00.AEST.2020.manly.snap.CherylWhite.jpg" width="4032" height="3024">
+    <points label="sign-point" source="manual" occluded="0" points="1563.36,1888.30" z_order="0">
+    </points>
+    <points label="building-1-point" source="manual" occluded="0" points="2467.44,652.89" z_order="0">
+    </points>
+    <points label="buildiing-2-point" source="manual" occluded="0" points="2768.24,549.49" z_order="0">
+    </points>
+    <points label="vent-point" source="manual" occluded="0" points="1422.00,2100.10" z_order="0">
+    </points>
+  </image>
+</annotations>
