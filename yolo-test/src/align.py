@@ -102,8 +102,8 @@ def align_image(
     cfg: dict,
     device: torch.device,
     output_path: str,
-    min_points: int = 4,
-    ransac_reproj_threshold: float = 50.0,
+    min_points: int = 3,
+    ransac_reproj_threshold: float = 25.0,
     subpixel: bool = True,
 ) -> bool:
     """
