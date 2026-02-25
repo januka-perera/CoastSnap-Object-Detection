@@ -11,7 +11,8 @@ data:
     - building-1
     - building-2
     - vent
-  num_classes: 4
+    - building-3
+  num_classes: 5
   num_keypoints: 1   # keypoints per detected object
   train_ratio: 0.70
   val_ratio: 0.15

@@ -9,7 +9,7 @@
       <overlap>0</overlap>
       <bugtracker></bugtracker>
       <created>2026-02-19 04:39:51.013276+00:00</created>
-      <updated>2026-02-24 00:43:54.528543+00:00</updated>
+      <updated>2026-02-25 00:39:38.060117+00:00</updated>
       <subset>default</subset>
       <start_frame>0</start_frame>
       <stop_frame>101</stop_frame>
@@ -112,9 +112,23 @@
           <attributes>
           </attributes>
         </label>
+        <label>
+          <name>building-3</name>
+          <color>#4f6a57</color>
+          <type>rectangle</type>
+          <attributes>
+          </attributes>
+        </label>
+        <label>
+          <name>building-3-point</name>
+          <color>#4fb6db</color>
+          <type>points</type>
+          <attributes>
+          </attributes>
+        </label>
       </labels>
     </job>
-    <dumped>2026-02-24 00:44:08.589673+00:00</dumped>
+    <dumped>2026-02-25 00:39:54.525242+00:00</dumped>
   </meta>
   <image id="0" name="1546397100.Wed.Jan.02_12_45_00.AEST.2019.manly.snap.frannyfish.jpg" width="4032" height="3024">
     <points label="building-1-point" source="manual" occluded="0" points="2611.70,682.20" z_order="0">
@@ -137,6 +151,10 @@
     <box label="vent" source="manual" occluded="0" xtl="1578.29" ytl="2100.70" xbr="1606.64" ybr="2157.90" z_order="0">
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1584.33,2149.04" z_order="0">
+    </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1777.60" ytl="514.00" xbr="1852.30" ybr="546.20" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1822.82,530.25" z_order="0">
     </points>
   </image>
   <image id="1" name="1546983900.Wed.Jan.09_07_45_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
@@ -161,6 +179,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1447.90,2043.80" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1658.64" ytl="392.74" xbr="1732.80" ybr="433.00" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1705.60,415.00" z_order="0">
+    </points>
   </image>
   <image id="2" name="1547063400.Thu.Jan.10_05_50_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
     <points label="building-1-point" source="manual" occluded="0" points="2488.31,532.29" z_order="0">
@@ -183,6 +205,10 @@
     <box label="vent" source="manual" occluded="0" xtl="1440.31" ytl="1941.30" xbr="1466.75" ybr="1991.17" z_order="0">
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1443.00,1986.70" z_order="0">
+    </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1649.30" ytl="338.00" xbr="1725.30" ybr="373.43" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1696.70,355.00" z_order="0">
     </points>
   </image>
   <image id="3" name="1547149200.Fri.Jan.11_05_40_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
@@ -207,6 +233,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1434.10,2124.20" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1645.08" ytl="484.70" xbr="1720.10" ybr="518.30" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1692.10,502.20" z_order="0">
+    </points>
   </image>
   <image id="4" name="1547235900.Sat.Jan.12_05_45_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
     <points label="sign-point" source="manual" occluded="0" points="1614.52,1900.67" z_order="0">
@@ -229,6 +259,10 @@
     <box label="vent" source="manual" occluded="0" xtl="1430.40" ytl="2046.00" xbr="1456.60" ybr="2097.90" z_order="0">
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1433.70,2093.10" z_order="0">
+    </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1646.12" ytl="448.91" xbr="1720.90" ybr="482.51" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1693.70,466.60" z_order="0">
     </points>
   </image>
   <image id="5" name="1548541200.Sun.Jan.27_08_20_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
@@ -253,6 +287,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1413.00,2099.00" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1623.72" ytl="456.90" xbr="1697.20" ybr="488.76" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1670.70,473.30" z_order="0">
+    </points>
   </image>
   <image id="6" name="1548880680.Thu.Jan.31_06_38_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
     <points label="sign-point" source="manual" occluded="0" points="1606.24,1894.66" z_order="0">
@@ -275,6 +313,10 @@
     <box label="vent" source="manual" occluded="0" xtl="1421.70" ytl="2039.80" xbr="1448.29" ybr="2090.50" z_order="0">
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1424.70,2086.60" z_order="0">
+    </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1637.62" ytl="447.87" xbr="1711.00" ybr="479.73" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1683.30,465.00" z_order="0">
     </points>
   </image>
   <image id="7" name="1549224000.Mon.Feb.04_06_00_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
@@ -299,6 +341,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1406.20,2095.70" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1621.12" ytl="457.10" xbr="1696.00" ybr="489.80" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1667.40,473.00" z_order="0">
+    </points>
   </image>
   <image id="8" name="1549570020.Fri.Feb.08_06_07_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
     <points label="sign-point" source="manual" occluded="0" points="1604.81,1891.61" z_order="0">
@@ -321,6 +367,10 @@
     <box label="vent" source="manual" occluded="0" xtl="1421.34" ytl="2038.00" xbr="1447.80" ybr="2087.70" z_order="0">
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1424.20,2083.40" z_order="0">
+    </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1636.40" ytl="444.80" xbr="1711.40" ybr="478.00" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1682.80,461.50" z_order="0">
     </points>
   </image>
   <image id="9" name="1550093700.Thu.Feb.14_07_35_00.AEST.2019.manly.snap.MitchellHarley.jpg" width="4032" height="3024">
@@ -345,6 +395,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1558.70,2113.80" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1752.10" ytl="573.30" xbr="1821.00" ybr="605.90" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1796.70,588.80" z_order="0">
+    </points>
   </image>
   <image id="10" name="1550865420.Sat.Feb.23_05_57_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
     <points label="sign-point" source="manual" occluded="0" points="1561.54,1923.73" z_order="0">
@@ -367,6 +421,10 @@
     <box label="vent" source="manual" occluded="0" xtl="1375.20" ytl="2070.10" xbr="1402.10" ybr="2120.00" z_order="0">
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1378.20,2116.90" z_order="0">
+    </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1595.17" ytl="473.70" xbr="1670.30" ybr="507.10" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1641.20,491.00" z_order="0">
     </points>
   </image>
   <image id="11" name="1550960160.Sun.Feb.24_08_16_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
@@ -391,6 +449,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1399.10,2083.60" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1610.84" ytl="442.60" xbr="1684.80" ybr="475.96" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1656.50,459.30" z_order="0">
+    </points>
   </image>
   <image id="12" name="1551037740.Mon.Feb.25_05_49_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
     <points label="sign-point" source="manual" occluded="0" points="1564.96,1894.23" z_order="0">
@@ -413,6 +475,10 @@
     <box label="vent" source="manual" occluded="0" xtl="1379.50" ytl="2039.20" xbr="1405.90" ybr="2090.20" z_order="0">
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1382.10,2086.50" z_order="0">
+    </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1596.57" ytl="442.20" xbr="1672.30" ybr="474.55" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1643.30,458.80" z_order="0">
     </points>
   </image>
   <image id="13" name="1551219000.Wed.Feb.27_08_10_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
@@ -437,6 +503,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1365.00,2093.00" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1583.51" ytl="449.03" xbr="1657.80" ybr="482.60" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1630.20,466.70" z_order="0">
+    </points>
   </image>
   <image id="14" name="1551305460.Thu.Feb.28_08_11_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
     <points label="sign-point" source="manual" occluded="0" points="1589.05,1904.13" z_order="0">
@@ -459,6 +529,10 @@
     <box label="vent" source="manual" occluded="0" xtl="1405.10" ytl="2048.70" xbr="1430.80" ybr="2100.10" z_order="0">
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1407.20,2095.90" z_order="0">
+    </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1621.20" ytl="454.70" xbr="1695.00" ybr="489.40" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1668.20,473.20" z_order="0">
     </points>
   </image>
   <image id="15" name="1551416520.Fri.Mar.01_15_02_00.AEST.2019.manly.snap.BenRoston.jpg" width="4032" height="3024">
@@ -483,6 +557,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1477.30,2082.40" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1684.83" ytl="432.60" xbr="1759.70" ybr="464.19" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1731.10,449.90" z_order="0">
+    </points>
   </image>
   <image id="16" name="1551675000.Mon.Mar.04_14_50_00.AEST.2019.manly.snap.IanCoghlan.jpg" width="3264" height="2448">
     <points label="sign-point" source="manual" occluded="0" points="1099.93,1538.07" z_order="0">
@@ -505,6 +583,10 @@
     <box label="vent" source="manual" occluded="0" xtl="936.60" ytl="1674.57" xbr="961.04" ybr="1719.70" z_order="0">
     </box>
     <points label="vent-point" source="manual" occluded="0" points="940.50,1718.00" z_order="0">
+    </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1077.10" ytl="201.50" xbr="1146.10" ybr="228.60" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1119.80,216.90" z_order="0">
     </points>
   </image>
   <image id="17" name="1552074000.Sat.Mar.09_05_40_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
@@ -529,6 +611,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1405.70,2107.00" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1621.76" ytl="468.10" xbr="1696.00" ybr="499.50" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1668.30,483.00" z_order="0">
+    </points>
   </image>
   <image id="18" name="1552160460.Sun.Mar.10_05_41_00.AEST.2019.manly.snap.frannyfish26.jpg" width="4032" height="3024">
     <points label="sign-point" source="manual" occluded="0" points="1621.00,1954.79" z_order="0">
@@ -552,6 +638,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1439.50,2150.60" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1635.65" ytl="508.20" xbr="1713.90" ybr="541.10" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1684.10,524.90" z_order="0">
+    </points>
   </image>
   <image id="19" name="1552335660.Tue.Mar.12_06_21_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
     <points label="sign-point" source="manual" occluded="0" points="1602.43,1914.43" z_order="0">
@@ -574,6 +664,10 @@
     <box label="vent" source="manual" occluded="0" xtl="1418.17" ytl="2059.17" xbr="1444.00" ybr="2110.10" z_order="0">
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1421.00,2106.80" z_order="0">
+    </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1634.09" ytl="467.70" xbr="1705.90" ybr="500.90" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1681.60,484.40" z_order="0">
     </points>
   </image>
   <image id="20" name="1552592820.Fri.Mar.15_05_47_00.AEST.2019.manly.snap.HelenWilkinson.jpg" width="640" height="480">
@@ -621,6 +715,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1446.40,2152.90" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1644.66" ytl="515.50" xbr="1719.90" ybr="548.40" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1690.16,530.58" z_order="0">
+    </points>
   </image>
   <image id="22" name="1552602000.Fri.Mar.15_08_20_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
     <points label="sign-point" source="manual" occluded="0" points="1582.95,1907.62" z_order="0">
@@ -643,6 +741,10 @@
     <box label="vent" source="manual" occluded="0" xtl="1398.40" ytl="2051.12" xbr="1424.32" ybr="2104.60" z_order="0">
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1401.20,2099.20" z_order="0">
+    </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1616.31" ytl="460.90" xbr="1694.00" ybr="494.80" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1662.80,478.20" z_order="0">
     </points>
   </image>
   <image id="23" name="1553121240.Thu.Mar.21_08_34_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
@@ -667,6 +769,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1433.90,2066.30" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1646.65" ytl="427.10" xbr="1721.20" ybr="460.80" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1692.90,445.60" z_order="0">
+    </points>
   </image>
   <image id="24" name="1553144100.Thu.Mar.21_14_55_00.AEST.2019.manly.snap.BenHague.jpg" width="4160" height="3120">
     <points label="sign-point" source="manual" occluded="0" points="1608.11,2163.86" z_order="0">
@@ -689,6 +795,10 @@
     <box label="vent" source="manual" occluded="0" xtl="1414.80" ytl="2321.43" xbr="1442.30" ybr="2374.20" z_order="0">
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1418.60,2371.60" z_order="0">
+    </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1627.45" ytl="666.60" xbr="1706.70" ybr="696.72" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1675.70,681.80" z_order="0">
     </points>
   </image>
   <image id="25" name="1553199900.Fri.Mar.22_06_25_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
@@ -713,6 +823,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1382.80,2099.90" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1597.41" ytl="457.80" xbr="1670.20" ybr="491.10" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1644.30,474.20" z_order="0">
+    </points>
   </image>
   <image id="26" name="1553549880.Tue.Mar.26_07_38_00.AEST.2019.manly.snap.frannyfish26.jpg" width="4032" height="3024">
     <points label="sign-point" source="manual" occluded="0" points="1613.73,1947.64" z_order="0">
@@ -735,6 +849,10 @@
     <box label="vent" source="manual" occluded="0" xtl="1430.94" ytl="2095.34" xbr="1458.44" ybr="2146.60" z_order="0">
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1433.80,2141.60" z_order="0">
+    </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1630.68" ytl="503.10" xbr="1703.40" ybr="535.30" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1677.60,518.50" z_order="0">
     </points>
   </image>
   <image id="27" name="1553825520.Fri.Mar.29_12_12_00.AEST.2019.manly.snap.JennyHarley.jpg" width="4032" height="3024">
@@ -759,6 +877,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1474.70,2131.90" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1696.06" ytl="410.50" xbr="1775.10" ybr="445.40" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1744.00,427.50" z_order="0">
+    </points>
   </image>
   <image id="28" name="1554070980.Mon.Apr.01_08_23_00.AEST.2019.manly.snap.CherylWhite.jpg" width="2016" height="1512">
     <box label="sign" source="manual" occluded="0" xtl="770.06" ytl="879.10" xbr="796.41" ybr="1009.38" z_order="0">
@@ -781,6 +903,10 @@
     <box label="vent" source="manual" occluded="0" xtl="699.45" ytl="1025.30" xbr="712.00" ybr="1051.42" z_order="0">
     </box>
     <points label="vent-point" source="manual" occluded="0" points="700.50,1049.70" z_order="0">
+    </points>
+    <box label="building-3" source="manual" occluded="0" xtl="807.52" ytl="227.60" xbr="844.90" ybr="244.30" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="831.20,235.80" z_order="0">
     </points>
   </image>
   <image id="29" name="1554588240.Sun.Apr.07_08_04_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
@@ -805,6 +931,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1393.80,2098.30" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1605.20" ytl="453.40" xbr="1681.40" ybr="485.40" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1652.60,469.10" z_order="0">
+    </points>
   </image>
   <image id="30" name="1554672660.Mon.Apr.08_07_31_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
     <points label="sign-point" source="manual" occluded="0" points="1581.56,1906.79" z_order="0">
@@ -827,6 +957,10 @@
     <box label="vent" source="manual" occluded="0" xtl="1396.56" ytl="2052.00" xbr="1422.90" ybr="2102.90" z_order="0">
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1398.60,2100.20" z_order="0">
+    </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1617.23" ytl="456.40" xbr="1692.20" ybr="488.90" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1664.30,472.60" z_order="0">
     </points>
   </image>
   <image id="31" name="1554756780.Tue.Apr.09_06_53_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
@@ -851,6 +985,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1400.60,2101.40" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1616.30" ytl="459.60" xbr="1691.70" ybr="493.07" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1663.70,474.90" z_order="0">
+    </points>
   </image>
   <image id="32" name="1555023060.Fri.Apr.12_08_51_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
     <points label="sign-point" source="manual" occluded="0" points="1582.36,1902.29" z_order="0">
@@ -873,6 +1011,10 @@
     <box label="vent" source="manual" occluded="0" xtl="1397.90" ytl="2046.60" xbr="1424.50" ybr="2098.00" z_order="0">
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1401.40,2092.20" z_order="0">
+    </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1615.60" ytl="456.13" xbr="1690.00" ybr="489.59" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1661.00,473.20" z_order="0">
     </points>
   </image>
   <image id="33" name="1555274160.Mon.Apr.15_06_36_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
@@ -897,6 +1039,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1405.00,2100.90" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1621.62" ytl="460.10" xbr="1696.20" ybr="493.07" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1667.50,477.90" z_order="0">
+    </points>
   </image>
   <image id="34" name="1555457280.Wed.Apr.17_09_28_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
     <points label="sign-point" source="manual" occluded="0" points="1594.56,1917.59" z_order="0">
@@ -919,6 +1065,10 @@
     <box label="vent" source="manual" occluded="0" xtl="1410.30" ytl="2063.50" xbr="1436.40" ybr="2113.30" z_order="0">
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1412.50,2110.60" z_order="0">
+    </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1625.27" ytl="472.57" xbr="1699.70" ybr="505.54" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1671.40,488.40" z_order="0">
     </points>
   </image>
   <image id="35" name="1555793280.Sun.Apr.21_06_48_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
@@ -943,6 +1093,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1411.00,2105.00" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1626.02" ytl="464.73" xbr="1700.20" ybr="497.69" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1672.50,479.50" z_order="0">
+    </points>
   </image>
   <image id="36" name="1555975020.Tue.Apr.23_09_17_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
     <points label="sign-point" source="manual" occluded="0" points="1582.56,1864.81" z_order="0">
@@ -965,6 +1119,10 @@
     <box label="vent" source="manual" occluded="0" xtl="1397.45" ytl="2009.10" xbr="1424.80" ybr="2061.60" z_order="0">
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1401.00,2056.60" z_order="0">
+    </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1614.45" ytl="415.40" xbr="1687.70" ybr="448.40" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1660.60,432.10" z_order="0">
     </points>
   </image>
   <image id="37" name="1556235960.Fri.Apr.26_09_46_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
@@ -989,6 +1147,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1404.20,2109.80" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1619.31" ytl="470.70" xbr="1692.56" ybr="504.40" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1666.50,487.90" z_order="0">
+    </points>
   </image>
   <image id="38" name="1556664120.Wed.May.01_08_42_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
     <points label="sign-point" source="manual" occluded="0" points="1598.14,1944.92" z_order="0">
@@ -1011,6 +1173,10 @@
     <box label="vent" source="manual" occluded="0" xtl="1413.95" ytl="2090.50" xbr="1440.13" ybr="2140.40" z_order="0">
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1415.80,2136.60" z_order="0">
+    </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1633.42" ytl="502.50" xbr="1708.50" ybr="537.03" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1680.10,519.90" z_order="0">
     </points>
   </image>
   <image id="39" name="1556750100.Thu.May.02_08_35_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
@@ -1035,6 +1201,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1412.00,2110.00" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1627.82" ytl="474.50" xbr="1700.30" ybr="507.20" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1672.50,490.90" z_order="0">
+    </points>
   </image>
   <image id="40" name="1556950080.Sat.May.04_16_08_00.AEST.2019.manly.snap.CatCoghlan.jpg" width="4032" height="3024">
     <points label="sign-point" source="manual" occluded="0" points="1746.70,1936.30" z_order="0">
@@ -1057,6 +1227,10 @@
     <box label="vent" source="manual" occluded="0" xtl="1564.50" ytl="2084.60" xbr="1591.30" ybr="2136.20" z_order="0">
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1568.00,2133.00" z_order="0">
+    </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1770.87" ytl="483.50" xbr="1836.50" ybr="514.84" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1806.70,499.70" z_order="0">
     </points>
   </image>
   <image id="41" name="1557636480.Sun.May.12_14_48_00.AEST.2019.manly.snap.Natchos.jpg" width="2048" height="1536">
@@ -1081,6 +1255,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="761.10,1048.00" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="855.74" ytl="270.70" xbr="891.60" ybr="287.47" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="876.80,279.20" z_order="0">
+    </points>
   </image>
   <image id="42" name="1557787500.Tue.May.14_08_45_00.AEST.2019.manly.snap.GregNippard.jpg" width="4032" height="3024">
     <points label="sign-point" source="manual" occluded="0" points="1728.91,1889.11" z_order="0">
@@ -1103,6 +1281,10 @@
     <box label="vent" source="manual" occluded="0" xtl="1548.60" ytl="2035.40" xbr="1573.00" ybr="2087.50" z_order="0">
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1550.30,2082.80" z_order="0">
+    </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1752.36" ytl="441.00" xbr="1828.50" ybr="472.75" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1799.90,457.90" z_order="0">
     </points>
   </image>
   <image id="43" name="1558508400.Wed.May.22_17_00_00.AEST.2019.manly.snap.LupinMa.jpg" width="1440" height="1080">
@@ -1150,6 +1332,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1425.90,2097.20" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1634.74" ytl="460.30" xbr="1712.40" ybr="496.22" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1680.25,476.65" z_order="0">
+    </points>
   </image>
   <image id="45" name="1559540940.Mon.Jun.03_15_49_00.AEST.2019.manly.snap.IanCoghlan.jpg" width="3264" height="2448">
     <points label="sign-point" source="manual" occluded="0" points="1100.85,1563.91" z_order="0">
@@ -1172,6 +1358,10 @@
     <box label="vent" source="manual" occluded="0" xtl="939.20" ytl="1702.00" xbr="963.10" ybr="1747.10" z_order="0">
     </box>
     <points label="vent-point" source="manual" occluded="0" points="941.30,1744.70" z_order="0">
+    </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1064.42" ytl="231.20" xbr="1134.80" ybr="260.70" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1106.90,246.80" z_order="0">
     </points>
   </image>
   <image id="46" name="1559629740.Tue.Jun.04_16_29_00.AEST.2019.manly.snap.IanCoghlan.jpg" width="3264" height="2448">
@@ -1196,6 +1386,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="935.60,1730.20" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1058.50" ytl="214.30" xbr="1130.60" ybr="244.80" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1101.00,229.40" z_order="0">
+    </points>
   </image>
   <image id="47" name="1559861700.Fri.Jun.07_08_55_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
     <points label="sign-point" source="manual" occluded="0" points="1598.79,1906.69" z_order="0">
@@ -1218,6 +1412,10 @@
     <box label="vent" source="manual" occluded="0" xtl="1414.30" ytl="2051.80" xbr="1440.40" ybr="2102.10" z_order="0">
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1416.90,2099.30" z_order="0">
+    </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1628.77" ytl="461.70" xbr="1705.80" ybr="494.73" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1676.20,478.80" z_order="0">
     </points>
   </image>
   <image id="48" name="1560199500.Tue.Jun.11_06_45_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
@@ -1242,6 +1440,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1402.90,2107.40" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1617.33" ytl="466.83" xbr="1693.50" ybr="499.86" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1663.40,483.90" z_order="0">
+    </points>
   </image>
   <image id="49" name="1560287880.Wed.Jun.12_07_18_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
     <points label="sign-point" source="manual" occluded="0" points="1585.69,1921.59" z_order="0">
@@ -1264,6 +1466,10 @@
     <box label="vent" source="manual" occluded="0" xtl="1401.60" ytl="2067.20" xbr="1427.60" ybr="2116.92" z_order="0">
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1404.30,2114.20" z_order="0">
+    </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1619.68" ytl="475.90" xbr="1694.80" ybr="508.00" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1666.60,487.80" z_order="0">
     </points>
   </image>
   <image id="50" name="1560467640.Fri.Jun.14_09_14_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
@@ -1288,6 +1494,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1397.00,2101.90" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1613.54" ytl="462.70" xbr="1689.00" ybr="495.50" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1659.80,479.80" z_order="0">
+    </points>
   </image>
   <image id="51" name="1560750780.Mon.Jun.17_15_53_00.AEST.2019.manly.snap.IanCoghlan.jpg" width="3264" height="2448">
     <points label="sign-point" source="manual" occluded="0" points="1104.48,1566.85" z_order="0">
@@ -1310,6 +1520,10 @@
     <box label="vent" source="manual" occluded="0" xtl="942.90" ytl="1705.00" xbr="967.80" ybr="1748.00" z_order="0">
     </box>
     <points label="vent-point" source="manual" occluded="0" points="946.50,1745.00" z_order="0">
+    </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1068.91" ytl="233.70" xbr="1140.00" ybr="265.95" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1112.90,249.70" z_order="0">
     </points>
   </image>
   <image id="52" name="1561071780.Fri.Jun.21_09_03_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
@@ -1334,6 +1548,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1449.80,2079.90" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1662.86" ytl="445.00" xbr="1737.20" ybr="478.40" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1708.90,463.20" z_order="0">
+    </points>
   </image>
   <image id="53" name="1561583520.Thu.Jun.27_07_12_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
     <points label="sign-point" source="manual" occluded="0" points="1586.66,1904.85" z_order="0">
@@ -1356,6 +1574,10 @@
     <box label="vent" source="manual" occluded="0" xtl="1402.50" ytl="2050.10" xbr="1428.70" ybr="2100.40" z_order="0">
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1405.70,2098.20" z_order="0">
+    </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1618.02" ytl="455.60" xbr="1693.60" ybr="489.50" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1664.60,473.20" z_order="0">
     </points>
   </image>
   <image id="54" name="1562196300.Thu.Jul.04_09_25_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
@@ -1380,6 +1602,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1414.60,2098.40" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1626.15" ytl="462.50" xbr="1700.80" ybr="496.30" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1672.50,481.20" z_order="0">
+    </points>
   </image>
   <image id="55" name="1562972760.Sat.Jul.13_09_06_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
     <points label="sign-point" source="manual" occluded="0" points="1588.77,1911.91" z_order="0">
@@ -1402,6 +1628,10 @@
     <box label="vent" source="manual" occluded="0" xtl="1406.20" ytl="2058.60" xbr="1430.90" ybr="2109.70" z_order="0">
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1408.00,2105.40" z_order="0">
+    </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1620.80" ytl="465.10" xbr="1697.10" ybr="496.10" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1668.40,483.90" z_order="0">
     </points>
   </image>
   <image id="56" name="1563057960.Sun.Jul.14_08_46_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
@@ -1426,6 +1656,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1410.30,2109.80" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1623.80" ytl="472.20" xbr="1699.30" ybr="504.30" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1671.00,490.40" z_order="0">
+    </points>
   </image>
   <image id="57" name="1563148200.Mon.Jul.15_09_50_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
     <points label="sign-point" source="manual" occluded="0" points="1578.67,1914.51" z_order="0">
@@ -1448,6 +1682,10 @@
     <box label="vent" source="manual" occluded="0" xtl="1394.70" ytl="2060.00" xbr="1420.60" ybr="2111.10" z_order="0">
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1396.40,2107.30" z_order="0">
+    </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1613.85" ytl="469.09" xbr="1689.35" ybr="502.60" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1660.60,486.40" z_order="0">
     </points>
   </image>
   <image id="58" name="1564261140.Sun.Jul.28_06_59_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
@@ -1472,6 +1710,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1433.30,2101.40" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1644.86" ytl="467.70" xbr="1719.80" ybr="501.21" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1690.50,484.90" z_order="0">
+    </points>
   </image>
   <image id="59" name="1564348080.Mon.Jul.29_07_08_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
     <points label="sign-point" source="manual" occluded="0" points="1582.97,1927.41" z_order="0">
@@ -1494,6 +1736,10 @@
     <box label="vent" source="manual" occluded="0" xtl="1399.60" ytl="2073.40" xbr="1425.70" ybr="2124.20" z_order="0">
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1401.90,2120.00" z_order="0">
+    </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1614.36" ytl="482.30" xbr="1689.30" ybr="515.10" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1661.90,498.70" z_order="0">
     </points>
   </image>
   <image id="60" name="1564959840.Mon.Aug.05_09_04_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
@@ -1518,6 +1764,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1408.40,2104.20" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1627.48" ytl="469.20" xbr="1702.42" ybr="502.81" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1674.00,485.70" z_order="0">
+    </points>
   </image>
   <image id="61" name="1566075900.Sun.Aug.18_07_05_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
     <points label="sign-point" source="manual" occluded="0" points="1584.67,1925.11" z_order="0">
@@ -1541,6 +1791,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1403.70,2115.20" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1618.11" ytl="481.80" xbr="1693.05" ybr="515.00" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1665.70,498.90" z_order="0">
+    </points>
   </image>
   <image id="62" name="1566086100.Sun.Aug.18_09_55_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
     <points label="sign-point" source="manual" occluded="0" points="1580.57,1922.61" z_order="0">
@@ -1563,6 +1817,10 @@
     <box label="vent" source="manual" occluded="0" xtl="1397.26" ytl="2069.00" xbr="1423.00" ybr="2119.30" z_order="0">
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1400.00,2115.90" z_order="0">
+    </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1611.63" ytl="474.97" xbr="1685.80" ybr="509.10" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1657.50,492.30" z_order="0">
     </points>
   </image>
   <image id="63" name="1566765600.Mon.Aug.26_06_40_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
@@ -1610,6 +1868,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1399.00,2111.90" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1614.54" ytl="470.90" xbr="1690.10" ybr="504.80" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1661.40,486.30" z_order="0">
+    </points>
   </image>
   <image id="65" name="1567376280.Mon.Sep.02_08_18_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
     <points label="sign-point" source="manual" occluded="0" points="1572.57,1911.51" z_order="0">
@@ -1632,6 +1894,10 @@
     <box label="vent" source="manual" occluded="0" xtl="1388.90" ytl="2056.60" xbr="1415.00" ybr="2108.90" z_order="0">
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1392.00,2105.50" z_order="0">
+    </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1605.20" ytl="465.50" xbr="1675.80" ybr="498.90" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1652.00,481.60" z_order="0">
     </points>
   </image>
   <image id="66" name="1568061900.Tue.Sep.10_06_45_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
@@ -1656,6 +1922,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1409.30,2113.60" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1626.40" ytl="477.30" xbr="1701.10" ybr="511.50" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1672.20,494.60" z_order="0">
+    </points>
   </image>
   <image id="67" name="1568068920.Tue.Sep.10_08_42_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
     <points label="sign-point" source="manual" occluded="0" points="1585.77,1913.91" z_order="0">
@@ -1678,6 +1948,10 @@
     <box label="vent" source="manual" occluded="0" xtl="1402.30" ytl="2059.90" xbr="1428.30" ybr="2110.10" z_order="0">
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1404.20,2107.30" z_order="0">
+    </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1618.90" ytl="471.60" xbr="1693.20" ybr="505.10" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1665.10,489.20" z_order="0">
     </points>
   </image>
   <image id="68" name="1568582580.Mon.Sep.16_07_23_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
@@ -1702,6 +1976,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1410.80,2105.30" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1628.13" ytl="465.90" xbr="1702.40" ybr="500.40" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1675.80,482.20" z_order="0">
+    </points>
   </image>
   <image id="69" name="1568924760.Fri.Sep.20_06_26_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
     <points label="sign-point" source="manual" occluded="0" points="1580.42,1902.08" z_order="0">
@@ -1724,6 +2002,10 @@
     <box label="vent" source="manual" occluded="0" xtl="1395.60" ytl="2047.10" xbr="1421.90" ybr="2096.70" z_order="0">
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1398.70,2093.70" z_order="0">
+    </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1613.54" ytl="456.00" xbr="1685.40" ybr="488.60" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1660.80,472.90" z_order="0">
     </points>
   </image>
   <image id="70" name="1568931240.Fri.Sep.20_08_14_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
@@ -1748,6 +2030,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1412.50,2093.70" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1624.79" ytl="455.60" xbr="1698.40" ybr="489.80" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1671.50,472.30" z_order="0">
+    </points>
   </image>
   <image id="71" name="1569011640.Sat.Sep.21_06_34_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
     <points label="sign-point" source="manual" occluded="0" points="1597.72,1903.28" z_order="0">
@@ -1770,6 +2056,10 @@
     <box label="vent" source="manual" occluded="0" xtl="1413.80" ytl="2049.00" xbr="1440.00" ybr="2097.50" z_order="0">
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1416.20,2096.00" z_order="0">
+    </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1629.74" ytl="457.20" xbr="1702.60" ybr="491.41" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1676.80,475.60" z_order="0">
     </points>
   </image>
   <image id="72" name="1571167500.Wed.Oct.16_05_25_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
@@ -1794,6 +2084,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1430.80,2083.10" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1644.60" ytl="443.06" xbr="1722.20" ybr="476.56" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1692.60,461.40" z_order="0">
+    </points>
   </image>
   <image id="73" name="1571953440.Fri.Oct.25_07_44_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
     <points label="sign-point" source="manual" occluded="0" points="1576.82,1932.78" z_order="0">
@@ -1816,6 +2110,10 @@
     <box label="vent" source="manual" occluded="0" xtl="1392.40" ytl="2078.20" xbr="1418.50" ybr="2128.50" z_order="0">
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1394.80,2124.70" z_order="0">
+    </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1615.41" ytl="487.60" xbr="1688.70" ybr="521.94" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1662.50,504.40" z_order="0">
     </points>
   </image>
   <image id="74" name="1574030040.Mon.Nov.18_08_34_00.AEST.2019.manly.snap.CherylWhite.jpg" width="4032" height="3024">
@@ -1840,6 +2138,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1428.70,2077.20" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1642.32" ytl="437.90" xbr="1715.50" ybr="471.33" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1688.30,454.60" z_order="0">
+    </points>
   </image>
   <image id="75" name="1574052780.Mon.Nov.18_14_53_00.AEST.2019.manly.snap.IanCoghlan.jpg" width="3264" height="2448">
     <points label="sign-point" source="manual" occluded="0" points="1116.48,1574.47" z_order="0">
@@ -1862,6 +2164,10 @@
     <box label="vent" source="manual" occluded="0" xtl="953.40" ytl="1713.90" xbr="978.80" ybr="1760.60" z_order="0">
     </box>
     <points label="vent-point" source="manual" occluded="0" points="958.00,1756.70" z_order="0">
+    </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1083.00" ytl="245.20" xbr="1152.10" ybr="275.50" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1126.80,260.40" z_order="0">
     </points>
   </image>
   <image id="76" name="1577820840.Wed.Jan.01_05_34_00.AEST.2020.manly.snap.CherylWhite.jpg" width="4032" height="3024">
@@ -1886,6 +2192,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1421.40,2099.40" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1636.89" ytl="461.90" xbr="1712.00" ybr="495.70" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1684.50,479.80" z_order="0">
+    </points>
   </image>
   <image id="77" name="1578258720.Mon.Jan.06_07_12_00.AEST.2020.manly.snap.CherylWhite.jpg" width="4032" height="3024">
     <points label="sign-point" source="manual" occluded="0" points="1611.74,1906.47" z_order="0">
@@ -1908,6 +2218,10 @@
     <box label="vent" source="manual" occluded="0" xtl="1427.81" ytl="2050.81" xbr="1454.50" ybr="2101.83" z_order="0">
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1431.00,2097.50" z_order="0">
+    </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1644.94" ytl="459.10" xbr="1718.50" ybr="492.30" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1690.40,475.90" z_order="0">
     </points>
   </image>
   <image id="78" name="1579233300.Fri.Jan.17_13_55_00.AEST.2020.manly.snap.AnnaDeli.jpg" width="4128" height="3096">
@@ -1932,6 +2246,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1484.80,2112.40" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1696.96" ytl="444.19" xbr="1775.40" ybr="478.50" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1747.60,461.40" z_order="0">
+    </points>
   </image>
   <image id="79" name="1579981260.Sun.Jan.26_05_41_00.AEST.2020.manly.snap.CherylWhite.jpg" width="4032" height="3024">
     <points label="sign-point" source="manual" occluded="0" points="1628.44,1853.36" z_order="0">
@@ -1954,6 +2272,10 @@
     <box label="vent" source="manual" occluded="0" xtl="1446.00" ytl="1996.30" xbr="1471.20" ybr="2046.30" z_order="0">
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1448.90,2041.70" z_order="0">
+    </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1659.86" ytl="403.90" xbr="1735.80" ybr="436.90" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1707.60,421.10" z_order="0">
     </points>
   </image>
   <image id="80" name="1581542820.Thu.Feb.13_07_27_00.AEST.2020.manly.snap.IanCoghlan.jpg" width="3264" height="2448">
@@ -1978,6 +2300,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="941.10,1744.30" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1064.83" ytl="229.45" xbr="1133.72" ybr="261.68" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1109.90,244.60" z_order="0">
+    </points>
   </image>
   <image id="81" name="1582012140.Tue.Feb.18_17_49_00.AEST.2020.manly.snap.CherylWhite.jpg" width="4032" height="3024">
     <points label="sign-point" source="manual" occluded="0" points="1604.60,1882.95" z_order="0">
@@ -2000,6 +2326,10 @@
     <box label="vent" source="manual" occluded="0" xtl="1422.50" ytl="2027.22" xbr="1448.50" ybr="2075.80" z_order="0">
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1425.40,2073.00" z_order="0">
+    </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1639.08" ytl="432.60" xbr="1712.70" ybr="465.40" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1684.50,450.30" z_order="0">
     </points>
   </image>
   <image id="82" name="1582583340.Tue.Feb.25_08_29_00.AEST.2020.manly.snap.CherylWhite.jpg" width="4032" height="3024">
@@ -2024,6 +2354,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1427.00,2062.30" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1641.05" ytl="416.80" xbr="1714.68" ybr="450.70" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1688.30,433.80" z_order="0">
+    </points>
   </image>
   <image id="83" name="1582669500.Wed.Feb.26_08_25_00.AEST.2020.manly.snap.MathiasBöhme.jpg" width="2016" height="1512">
     <points label="sign-point" source="manual" occluded="0" points="840.95,941.81" z_order="0">
@@ -2046,6 +2380,10 @@
     <box label="vent" source="manual" occluded="0" xtl="754.40" ytl="1009.50" xbr="766.20" ybr="1035.10" z_order="0">
     </box>
     <points label="vent-point" source="manual" occluded="0" points="755.50,1031.90" z_order="0">
+    </points>
+    <box label="building-3" source="manual" occluded="0" xtl="854.46" ytl="264.90" xbr="891.40" ybr="280.08" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="878.30,272.10" z_order="0">
     </points>
   </image>
   <image id="84" name="1588895040.Fri.May.08_09_44_00.AEST.2020.manly.snap.CherylWhite.jpg" width="4032" height="3024">
@@ -2070,6 +2408,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1393.70,2082.30" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1608.50" ytl="441.00" xbr="1683.60" ybr="474.20" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1655.80,457.30" z_order="0">
+    </points>
   </image>
   <image id="85" name="1590622680.Thu.May.28_09_38_00.AEST.2020.manly.snap.CherylWhite.jpg" width="4032" height="3024">
     <points label="sign-point" source="manual" occluded="0" points="1606.80,1898.70" z_order="0">
@@ -2092,6 +2434,10 @@
     <box label="vent" source="manual" occluded="0" xtl="1423.55" ytl="2043.00" xbr="1449.20" ybr="2093.07" z_order="0">
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1426.10,2090.20" z_order="0">
+    </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1640.10" ytl="454.00" xbr="1715.10" ybr="486.00" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1686.70,470.80" z_order="0">
     </points>
   </image>
   <image id="86" name="1590629460.Thu.May.28_11_31_00.AEST.2020.manly.snap.CherylWhite.jpg" width="4032" height="3024">
@@ -2116,6 +2462,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1419.40,2099.30" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1632.50" ytl="462.40" xbr="1707.70" ybr="496.20" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1679.00,479.00" z_order="0">
+    </points>
   </image>
   <image id="87" name="1590962820.Mon.Jun.01_08_07_00.AEST.2020.manly.snap.CherylWhite.jpg" width="4032" height="3024">
     <points label="sign-point" source="manual" occluded="0" points="1585.70,1905.30" z_order="0">
@@ -2138,6 +2488,10 @@
     <box label="vent" source="manual" occluded="0" xtl="1402.20" ytl="2050.00" xbr="1427.60" ybr="2100.10" z_order="0">
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1404.30,2097.70" z_order="0">
+    </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1618.50" ytl="457.20" xbr="1693.70" ybr="491.60" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1665.50,473.70" z_order="0">
     </points>
   </image>
   <image id="88" name="1591830120.Thu.Jun.11_09_02_00.AEST.2020.manly.snap.CherylWhite.jpg" width="4032" height="3024">
@@ -2162,6 +2516,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1435.50,2084.70" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1648.53" ytl="446.45" xbr="1723.73" ybr="481.89" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1695.60,464.10" z_order="0">
+    </points>
   </image>
   <image id="89" name="1592184420.Mon.Jun.15_11_27_00.AEST.2020.manly.snap.CherylWhite.jpg" width="4032" height="3024">
     <points label="sign-point" source="manual" occluded="0" points="1580.49,1906.84" z_order="0">
@@ -2184,6 +2542,10 @@
     <box label="vent" source="manual" occluded="0" xtl="1398.30" ytl="2050.00" xbr="1423.40" ybr="2098.60" z_order="0">
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1400.70,2096.90" z_order="0">
+    </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1614.77" ytl="458.60" xbr="1689.40" ybr="493.55" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1660.90,476.30" z_order="0">
     </points>
   </image>
   <image id="90" name="1592614380.Sat.Jun.20_10_53_00.AEST.2020.manly.snap.CherylWhite.jpg" width="4032" height="3024">
@@ -2208,6 +2570,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1409.10,2093.70" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1624.78" ytl="454.90" xbr="1699.41" ybr="487.20" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1671.20,471.70" z_order="0">
+    </points>
   </image>
   <image id="91" name="1592779680.Mon.Jun.22_08_48_00.AEST.2020.manly.snap.CherylWhite.jpg" width="4032" height="3024">
     <points label="sign-point" source="manual" occluded="0" points="1612.29,1887.39" z_order="0">
@@ -2230,6 +2596,10 @@
     <box label="vent" source="manual" occluded="0" xtl="1431.10" ytl="2030.70" xbr="1455.40" ybr="2081.60" z_order="0">
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1432.20,2077.50" z_order="0">
+    </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1645.00" ytl="440.21" xbr="1719.63" ybr="474.10" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1691.20,457.00" z_order="0">
     </points>
   </image>
   <image id="92" name="1593210600.Sat.Jun.27_08_30_00.AEST.2020.manly.snap.CherylWhite.jpg" width="4032" height="3024">
@@ -2254,6 +2624,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1415.70,2103.00" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1630.00" ytl="466.60" xbr="1704.63" ybr="500.90" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1676.00,483.20" z_order="0">
+    </points>
   </image>
   <image id="93" name="1593295380.Sun.Jun.28_08_03_00.AEST.2020.manly.snap.CherylWhite.jpg" width="4032" height="3024">
     <points label="sign-point" source="manual" occluded="0" points="1624.59,1882.59" z_order="0">
@@ -2277,6 +2651,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1443.40,2072.50" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1657.30" ytl="436.20" xbr="1732.83" ybr="469.30" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1704.70,451.80" z_order="0">
+    </points>
   </image>
   <image id="94" name="1593303000.Sun.Jun.28_10_10_00.AEST.2020.manly.snap.CherylWhite.jpg" width="4032" height="3024">
     <points label="sign-point" source="manual" occluded="0" points="1602.79,1897.79" z_order="0">
@@ -2299,6 +2677,10 @@
     <box label="vent" source="manual" occluded="0" xtl="1418.90" ytl="2041.00" xbr="1444.00" ybr="2091.70" z_order="0">
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1421.40,2088.10" z_order="0">
+    </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1636.50" ytl="453.80" xbr="1710.80" ybr="488.10" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1681.40,470.80" z_order="0">
     </points>
   </image>
   <image id="95" name="1594338960.Fri.Jul.10_09_56_00.AEST.2020.manly.snap.MitchellHarley.jpg" width="1279" height="959">
@@ -2346,6 +2728,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1408.00,2090.00" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1624.80" ytl="454.07" xbr="1698.97" ybr="487.40" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1671.60,471.80" z_order="0">
+    </points>
   </image>
   <image id="97" name="1594427760.Sat.Jul.11_10_36_00.AEST.2020.manly.snap.CherylWhite.jpg" width="4032" height="3024">
     <points label="sign-point" source="manual" occluded="0" points="1598.46,1923.31" z_order="0">
@@ -2368,6 +2754,10 @@
     <box label="vent" source="manual" occluded="0" xtl="1413.87" ytl="2066.88" xbr="1440.16" ybr="2117.80" z_order="0">
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1416.60,2115.40" z_order="0">
+    </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1633.01" ytl="479.60" xbr="1707.18" ybr="514.00" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1679.30,496.30" z_order="0">
     </points>
   </image>
   <image id="98" name="1594854960.Thu.Jul.16_09_16_00.AEST.2020.manly.snap.CherylWhite.jpg" width="4032" height="3024">
@@ -2392,6 +2782,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1406.70,2077.40" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1621.57" ytl="439.60" xbr="1695.74" ybr="474.10" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1668.40,457.20" z_order="0">
+    </points>
   </image>
   <image id="99" name="1598055420.Sat.Aug.22_10_17_00.AEST.2020.manly.snap.JennyHarley.jpg" width="4032" height="3024">
     <points label="sign-point" source="manual" occluded="0" points="1583.35,1899.92" z_order="0">
@@ -2414,6 +2808,10 @@
     <box label="vent" source="manual" occluded="0" xtl="1400.00" ytl="2045.20" xbr="1425.13" ybr="2094.69" z_order="0">
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1402.40,2091.00" z_order="0">
+    </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1613.13" ytl="450.90" xbr="1690.30" ybr="484.10" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1659.40,467.60" z_order="0">
     </points>
   </image>
   <image id="100" name="1598992500.Wed.Sep.02_06_35_00.AEST.2020.manly.snap.CherylWhite.jpg" width="4032" height="3024">
@@ -2438,6 +2836,10 @@
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1412.20,2102.90" z_order="0">
     </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1624.57" ytl="467.30" xbr="1699.10" ybr="499.75" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1671.70,482.60" z_order="0">
+    </points>
   </image>
   <image id="101" name="1599166080.Fri.Sep.04_06_48_00.AEST.2020.manly.snap.CherylWhite.jpg" width="4032" height="3024">
     <points label="sign-point" source="manual" occluded="0" points="1594.15,1927.85" z_order="0">
@@ -2460,6 +2862,10 @@
     <box label="vent" source="manual" occluded="0" xtl="1408.97" ytl="2072.50" xbr="1434.90" ybr="2122.70" z_order="0">
     </box>
     <points label="vent-point" source="manual" occluded="0" points="1412.20,2119.90" z_order="0">
+    </points>
+    <box label="building-3" source="manual" occluded="0" xtl="1625.97" ytl="481.38" xbr="1700.51" ybr="515.24" z_order="0">
+    </box>
+    <points label="building-3-point" source="manual" occluded="0" points="1672.80,499.50" z_order="0">
     </points>
   </image>
 </annotations>
