@@ -1,27 +1,38 @@
 """
-Image alignment to a reference using DLT camera calibration.
+Image alignment to a reference via per-image camera pose estimation.
 
 Steps
 -----
 1. Load reference keypoints — manually specified 2D pixel coords in the
    reference image AND 3D world coords (local metres, z=up) for each landmark.
-2. Pass 1 — run YOLO + keypoint pipeline on every query image to detect 2D
-   keypoint locations.
-3. Calibration — jointly estimate the camera intrinsic matrix K (focal length,
-   principal point) across all images using cv2.calibrateCamera.
-   Assumptions: zero skew, square pixels (fx=fy), no lens distortion.
-4. Pass 2 — for each query image, estimate camera pose with solvePnPRansac
-   using the calibrated K and known 3D world coordinates.
-5. Compute the plane-induced homography for z=0 (water surface) between the
-   query and reference cameras, then warp with cv2.warpPerspective.
+2. Estimate the reference camera pose (focal length + R + t) from the manually
+   annotated 2D–3D correspondences using a nonlinear solver.
+3. For each query image:
+   a. Run YOLO + keypoint pipeline to detect 2D landmark locations.
+   b. Estimate the query camera pose the same way.
+   c. Compute the plane-induced homography for z=0 (water surface) between
+      the query and reference cameras.
+   d. Warp the query image with cv2.warpPerspective.
 
-Why DLT instead of homography?
--------------------------------
-Homography requires scene points to be coplanar.  The landmarks here are at
-different elevations, so homography is not valid.  DLT estimates the full
-projection matrix P = K[R|t] from 2D–3D correspondences and handles
-non-coplanar points correctly.  Alignment is performed for the z=0 plane
-(the target beach/water surface).
+Why not homography?
+-------------------
+Homography requires scene points to be coplanar.  The landmarks here span
+different elevations, so homography is not valid.  Instead we estimate the
+full projection matrix P = K[R|t] per image and then derive the z=0 plane
+homography analytically.
+
+Per-image focal length
+----------------------
+Images may come from different smartphones with unknown intrinsics.  We
+estimate focal length f independently for each image under the assumptions:
+  - Zero skew
+  - Square pixels: fx = fy = f
+  - Principal point at image centre: cx = W/2, cy = H/2
+  - No lens distortion
+
+With 5 point correspondences this gives 10 equations and 7 unknowns
+(f + 3 rotation + 3 translation), an overdetermined system solved by
+Levenberg-Marquardt via scipy.optimize.least_squares.
 
 reference_keypoints.json format
 --------------------------------
@@ -30,7 +41,7 @@ reference_keypoints.json format
         "building-1": {"image": [2467.44,  652.89], "world": [X, Y, Z]},
         "building-2": {"image": [2768.24,  549.49], "world": [X, Y, Z]},
         "vent":       {"image": [1422.00, 2100.10], "world": [X, Y, Z]},
-        "fifth":      {"image": [u, v],             "world": [X, Y, Z]}
+        "building-3": {"image": [u, v],             "world": [X, Y, Z]}
     }
     image : 2D pixel coords in the reference image (manually measured)
     world : 3D coords in local metres  (z = elevation, z=0 = water surface)
@@ -97,65 +108,119 @@ def load_reference_keypoints(path: str):
 
 
 # ---------------------------------------------------------------------------
-# Camera calibration (DLT)
+# Per-image camera pose estimation (f + R + t)
 # ---------------------------------------------------------------------------
 
-def calibrate_camera(
-    image_pts_list: list,
+def estimate_camera_pose(
+    image_pts: np.ndarray,
     world_pts: np.ndarray,
     image_size: tuple,
+    ransac_reproj_threshold: float = 10.0,
+    min_inliers: int = 4,
 ) -> tuple:
     """
-    Jointly estimate K and per-image poses using cv2.calibrateCamera.
+    Jointly estimate focal length f and camera pose [R|t] for a single image.
 
-    Assumptions enforced via flags:
-      - Zero skew           (OpenCV camera model has no skew term by default)
-      - Square pixels fx=fy (CALIB_FIX_ASPECT_RATIO initialised with fx=fy)
-      - No lens distortion  (CALIB_FIX_K1/K2/K3 + CALIB_ZERO_TANGENT_DIST)
+    Assumptions
+    -----------
+    - Zero skew
+    - Square pixels: fx = fy = f
+    - Principal point at image centre: cx = W/2, cy = H/2
+    - No lens distortion
+
+    Strategy
+    --------
+    1. solvePnPRansac with a fixed initial-guess K (f = max(W, H)) to get a
+       robust initial pose and inlier set.
+    2. scipy.optimize.least_squares (LM) over inliers only to jointly refine
+       f + rvec + tvec (7 parameters, 2×N_inliers equations).
+    3. Compute final inlier mask with refined parameters over all N points.
 
     Parameters
     ----------
-    image_pts_list : list of (N, 2) float32 arrays, one per image.
-                     The first element must be the reference image.
-    world_pts      : (N, 3) float32 — fixed 3D world coords for every image.
-    image_size     : (width, height)
+    image_pts              : (N, 2) float32 — 2D pixel coordinates
+    world_pts              : (N, 3) float32 — 3D world coordinates
+    image_size             : (width, height)
+    ransac_reproj_threshold: reprojection error threshold for RANSAC and
+                             final inlier counting (pixels)
+    min_inliers            : minimum inliers required; returns None on failure
 
     Returns
     -------
-    K     : (3, 3) float64 camera matrix
-    rvecs : list of (3, 1) rotation vectors (one per image)
-    tvecs : list of (3, 1) translation vectors (one per image)
+    K           : (3, 3) float64 camera matrix with estimated f
+    rvec        : (3, 1) float64 rotation vector
+    tvec        : (3, 1) float64 translation vector
+    inlier_mask : (N,) bool array — True for inlier points
+    Returns (None, None, None, None) on failure.
     """
-    obj_pts = [world_pts.reshape(-1, 1, 3)] * len(image_pts_list)
-    img_pts = [pts.reshape(-1, 1, 2) for pts in image_pts_list]
+    try:
+        from scipy.optimize import least_squares as _lsq
+    except ImportError:
+        raise ImportError(
+            "scipy is required for per-image focal-length estimation. "
+            "Install with:  pip install scipy"
+        )
 
     W, H   = image_size
+    cx, cy = W / 2.0, H / 2.0
+
+    pts_3d = world_pts.astype(np.float64).reshape(-1, 1, 3)
+    pts_2d = image_pts.astype(np.float64).reshape(-1, 1, 2)
+
+    # ── Step 1: RANSAC with initial K to obtain a robust starting pose ────
     f_init = float(max(W, H))
     K_init = np.array(
-        [[f_init, 0.,      W / 2.],
-         [0.,      f_init, H / 2.],
-         [0.,      0.,     1.    ]],
-        dtype=np.float64,
+        [[f_init, 0.,    cx],
+         [0.,    f_init, cy],
+         [0.,    0.,      1.]], dtype=np.float64,
     )
 
-    flags = (
-        cv2.CALIB_FIX_ASPECT_RATIO    # fx = fy  (square pixels)
-        | cv2.CALIB_ZERO_TANGENT_DIST # p1 = p2 = 0
-        | cv2.CALIB_FIX_K1            # k1 = 0
-        | cv2.CALIB_FIX_K2            # k2 = 0
-        | cv2.CALIB_FIX_K3            # k3 = 0
+    ok, rvec0, tvec0, inliers0 = cv2.solvePnPRansac(
+        pts_3d, pts_2d, K_init, None,
+        reprojectionError=ransac_reproj_threshold,
+        confidence=0.99,
+        iterationsCount=2000,
     )
 
-    rms, K, _, rvecs, tvecs = cv2.calibrateCamera(
-        obj_pts, img_pts, image_size,
-        K_init, np.zeros((1, 5), dtype=np.float64),
-        flags=flags,
+    if not ok or inliers0 is None or len(inliers0) < min_inliers:
+        return None, None, None, None
+
+    inlier_idx = inliers0.ravel()
+
+    # ── Step 2: LM refinement of f + pose jointly on inlier subset ───────
+    pts_3d_in = world_pts[inlier_idx].astype(np.float64)
+    pts_2d_in = image_pts[inlier_idx].astype(np.float64)
+
+    def _residuals(params):
+        f, rx, ry, rz, tx, ty, tz = params
+        K_ = np.array([[f, 0., cx], [0., f, cy], [0., 0., 1.]], dtype=np.float64)
+        rv = np.array([rx, ry, rz], dtype=np.float64)
+        tv = np.array([tx, ty, tz], dtype=np.float64)
+        proj, _ = cv2.projectPoints(
+            pts_3d_in.reshape(-1, 1, 3), rv, tv, K_, None
+        )
+        return (proj.reshape(-1, 2) - pts_2d_in).ravel()
+
+    x0  = np.concatenate([[f_init], rvec0.ravel(), tvec0.ravel()])
+    res = _lsq(_residuals, x0, method="lm")
+
+    f, rx, ry, rz, tx, ty, tz = res.x
+
+    if f <= 0:
+        return None, None, None, None
+
+    K    = np.array([[f, 0., cx], [0., f, cy], [0., 0., 1.]], dtype=np.float64)
+    rvec = np.array([[rx], [ry], [rz]], dtype=np.float64)
+    tvec = np.array([[tx], [ty], [tz]], dtype=np.float64)
+
+    # ── Step 3: final inlier mask over all N points ───────────────────────
+    proj_all, _ = cv2.projectPoints(
+        world_pts.astype(np.float64).reshape(-1, 1, 3), rvec, tvec, K, None
     )
-    print(
-        f"  Calibration RMS reprojection error : {rms:.3f} px\n"
-        f"  f={K[0, 0]:.1f}  cx={K[0, 2]:.1f}  cy={K[1, 2]:.1f}"
-    )
-    return K, rvecs, tvecs
+    errors      = np.linalg.norm(proj_all.reshape(-1, 2) - image_pts, axis=1)
+    inlier_mask = errors < ransac_reproj_threshold
+
+    return K, rvec, tvec, inlier_mask
 
 
 # ---------------------------------------------------------------------------
@@ -172,7 +237,11 @@ def projection_matrix(
     return K @ np.hstack([R, tvec.reshape(3, 1)])
 
 
-def plane_homography_z0(P_ref: np.ndarray, P_query: np.ndarray) -> np.ndarray:
+def plane_homography_z0(
+    P_ref: np.ndarray,
+    P_query: np.ndarray,
+    cond_threshold: float = 1e8,
+) -> np.ndarray:
     """
     Compute the homography induced by the z=0 plane.
 
@@ -181,10 +250,20 @@ def plane_homography_z0(P_ref: np.ndarray, P_query: np.ndarray) -> np.ndarray:
 
     The homography mapping query image coords → reference image coords is:
         H = P_ref[:, [0,1,3]] @ inv(P_query[:, [0,1,3]])
+
+    Uses np.linalg.solve for numerical stability instead of explicit inversion.
+    Returns None if P_query[:, [0,1,3]] is near-singular.
     """
     A = P_ref  [:, [0, 1, 3]]
     B = P_query[:, [0, 1, 3]]
-    return A @ np.linalg.inv(B)
+
+    if np.linalg.cond(B) > cond_threshold:
+        return None
+
+    # solve B^T H^T = A^T  →  H = (B^T \ A^T)^T
+    H = np.linalg.solve(B.T, A.T).T
+    H /= H[2, 2]
+    return H
 
 
 # ---------------------------------------------------------------------------
@@ -196,24 +275,27 @@ def align_image(
     class_names: list,
     world_pts: np.ndarray,
     detected_2d: dict,
-    K: np.ndarray,
     P_ref: np.ndarray,
     ref_size: tuple,
     output_path: str,
-    min_points: int = 4,
+    min_inliers: int = 4,
     ransac_reproj_threshold: float = 10.0,
 ) -> bool:
     """
-    Estimate the query camera pose with solvePnPRansac, compute the z=0 plane
-    homography to the reference camera, and warp the query image.
+    Estimate per-image focal length and camera pose, compute the z=0 plane
+    homography relative to the reference camera, and warp the query image.
 
     Parameters
     ----------
-    detected_2d : dict mapping class_name → [kp_x, kp_y] in query image pixels.
+    detected_2d  : dict mapping class_name → [kp_x, kp_y] in query image pixels.
+    P_ref        : (3, 4) reference camera projection matrix.
+    ref_size     : (width, height) of the reference image — output warp size.
+    min_inliers  : minimum RANSAC inliers required (in addition to all landmarks
+                   being detected).
     """
     stem = Path(query_path).name
 
-    # ── Match detected 2D keypoints to 3D world points ────────────────────
+    # ── Require all landmarks to be detected ──────────────────────────────
     src_2d      = []
     src_3d      = []
     matched_cls = []
@@ -226,62 +308,61 @@ def align_image(
 
     n_required = len(class_names)
     if len(src_2d) < n_required:
+        missing = [c for c in class_names if c not in detected_2d]
         print(
             f"  [SKIP] {stem}: {len(src_2d)}/{n_required} landmarks detected "
-            f"— found {matched_cls}"
+            f"— missing {missing}"
         )
         return False
 
-    # ── Load query image and check resolution ────────────────────────────
+    # ── Load query image ──────────────────────────────────────────────────
     query_img = cv2.imread(query_path)
     if query_img is None:
         print(f"  [SKIP] {stem}: cannot read image")
         return False
 
-    ref_W, ref_H = ref_size
-    q_H, q_W    = query_img.shape[:2]
+    q_H, q_W = query_img.shape[:2]
 
-    # K was calibrated in reference image pixel space.  If the query image
-    # has a different resolution, scale the detected 2D keypoints to match
-    # the reference coordinate system before calling solvePnPRansac.
-    scale_x = ref_W / q_W
-    scale_y = ref_H / q_H
-    if scale_x != 1.0 or scale_y != 1.0:
-        src_2d_arr = np.array(src_2d, dtype=np.float32)
-        src_2d_arr[:, 0] *= scale_x
-        src_2d_arr[:, 1] *= scale_y
-        src_2d = src_2d_arr.tolist()
+    src_2d = np.array(src_2d, dtype=np.float32)
+    src_3d = np.array(src_3d, dtype=np.float32)
 
-    src_2d = np.array(src_2d, dtype=np.float32).reshape(-1, 1, 2)
-    src_3d = np.array(src_3d, dtype=np.float32).reshape(-1, 1, 3)
-
-    # ── Estimate pose with RANSAC ─────────────────────────────────────────
-    success, rvec, tvec, inliers = cv2.solvePnPRansac(
-        src_3d, src_2d, K, None,
-        reprojectionError=ransac_reproj_threshold,
-        confidence=0.99,
-        iterationsCount=1000,
+    # ── Estimate per-image focal length and pose ──────────────────────────
+    # Keypoints are in query image pixel space; K is estimated for that space.
+    K_query, rvec, tvec, inlier_mask = estimate_camera_pose(
+        src_2d, src_3d, (q_W, q_H),
+        ransac_reproj_threshold=ransac_reproj_threshold,
+        min_inliers=min_inliers,
     )
 
-    n_inliers = len(inliers) if inliers is not None else 0
-    if not success or n_inliers < min_points:
-        print(f"  [SKIP] {stem}: solvePnPRansac failed — {n_inliers}/{len(src_2d)} inliers")
+    if K_query is None:
+        print(f"  [SKIP] {stem}: pose estimation failed (too few RANSAC inliers)")
+        return False
+
+    n_inliers = int(inlier_mask.sum())
+    if n_inliers < min_inliers:
+        print(
+            f"  [SKIP] {stem}: only {n_inliers}/{len(src_2d)} inliers "
+            f"after refinement"
+        )
         return False
 
     print(
-        f"  {stem}: matched={matched_cls}  "
+        f"  {stem}: f={K_query[0, 0]:.1f} px  "
         f"inliers={n_inliers}/{len(src_2d)}"
     )
 
     # ── Plane homography and warp ─────────────────────────────────────────
-    # H is computed in reference pixel space.  Resize the query image to
-    # reference resolution first so the warp is applied consistently.
-    P_query = projection_matrix(K, rvec, tvec)
+    # P_ref and P_query are both expressed in their own image coordinate
+    # systems (different K), so the homography maps query pixels → reference
+    # pixels without any manual resizing.
+    P_query = projection_matrix(K_query, rvec, tvec)
     H       = plane_homography_z0(P_ref, P_query)
 
-    if q_W != ref_W or q_H != ref_H:
-        query_img = cv2.resize(query_img, (ref_W, ref_H))
+    if H is None:
+        print(f"  [SKIP] {stem}: plane homography is near-singular (degenerate pose)")
+        return False
 
+    ref_W, ref_H = ref_size
     aligned = cv2.warpPerspective(query_img, H, (ref_W, ref_H))
     cv2.imwrite(output_path, aligned)
     return True
@@ -293,7 +374,7 @@ def align_image(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Align query images to a reference via DLT camera calibration"
+        description="Align query images to a reference via per-image camera pose estimation"
     )
     _default_cfg = str(Path(__file__).parent.parent / "configs" / "config.yaml")
 
@@ -313,9 +394,9 @@ def main():
                         help="Directory of per-class keypoint models "
                              "(<class_name>_best.pt).")
     parser.add_argument("--output-dir",          default="./aligned")
-    parser.add_argument("--min-points",          type=int, default=4,
-                        help="Minimum RANSAC inlier keypoints required (must be ≥4). "
-                             "All landmarks must be detected regardless of this value.")
+    parser.add_argument("--min-inliers",         type=int, default=4,
+                        help="Minimum RANSAC inliers required per image (≥4). "
+                             "All landmarks must also be detected.")
     parser.add_argument("--ransac-threshold",    type=float, default=10.0,
                         help="RANSAC reprojection error threshold in pixels.")
     parser.add_argument("--no-subpixel",         action="store_true")
@@ -336,7 +417,7 @@ def main():
         print(f"ERROR: cannot read reference image: {args.reference}")
         sys.exit(1)
     ref_H_px, ref_W_px = ref_img.shape[:2]
-    image_size = (ref_W_px, ref_H_px)
+    ref_size = (ref_W_px, ref_H_px)
     print(f"Reference image : {args.reference}  ({ref_W_px}×{ref_H_px})")
 
     # ── Reference keypoints ───────────────────────────────────────────────
@@ -345,17 +426,34 @@ def main():
     )
     print(f"Landmarks       : {class_names}")
 
-    # UTM eastings/northings are in the hundreds-of-thousands to millions range,
-    # which causes numerical instability in the DLT linear system.  Centre the
-    # XY coordinates around their mean.  Z is left unchanged so that z=0 still
-    # corresponds to the water surface.
-    xy_origin  = world_pts[:, :2].mean(axis=0)
-    world_pts  = world_pts.copy()
+    # UTM eastings/northings are in the hundreds-of-thousands range.
+    # Subtract the XY centroid for numerical stability in the nonlinear solve.
+    # Z is left unchanged so z=0 still corresponds to the water surface.
+    xy_origin = world_pts[:, :2].mean(axis=0)
+    world_pts = world_pts.copy()
     world_pts[:, :2] -= xy_origin
-    print(f"UTM XY origin   : ({xy_origin[0]:.2f}, {xy_origin[1]:.2f})  "
-          f"(subtracted for numerical stability)")
+    print(
+        f"UTM XY origin   : ({xy_origin[0]:.2f}, {xy_origin[1]:.2f})  "
+        f"(subtracted for numerical stability)"
+    )
 
-    # ── Load models ───────────────────────────────────────────────────────
+    # ── Estimate reference camera pose ────────────────────────────────────
+    print("\nEstimating reference camera pose…")
+    K_ref, rvec_ref, tvec_ref, inliers_ref = estimate_camera_pose(
+        ref_image_pts, world_pts, ref_size,
+        ransac_reproj_threshold=args.ransac_threshold,
+        min_inliers=4,
+    )
+    if K_ref is None:
+        print("ERROR: could not estimate reference camera pose — too few inliers.")
+        sys.exit(1)
+    print(
+        f"  f={K_ref[0, 0]:.1f} px  "
+        f"inliers={inliers_ref.sum()}/{len(ref_image_pts)}"
+    )
+    P_ref = projection_matrix(K_ref, rvec_ref, tvec_ref)
+
+    # ── Load detection models ─────────────────────────────────────────────
     yolo_model, _, _ = load_yolo(
         args.yolo_weights,
         cfg["yolo"]["conf_threshold"],
@@ -389,69 +487,30 @@ def main():
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    # ── Pass 1: detect keypoints in all query images ──────────────────────
-    print(f"\nPass 1: detecting keypoints in {len(image_paths)} image(s)…")
-    all_detections: dict = {}   # img_path -> {class_name: [kp_x, kp_y]}
+    # ── Detect keypoints then align each query image ──────────────────────
+    print(f"\nProcessing {len(image_paths)} query image(s) → {out_dir}\n")
 
+    n_success = 0
     for img_path in image_paths:
+        stem = Path(img_path).stem
+
+        # Detect 2D landmark locations in this image
         results = run_pipeline(
             img_path, yolo_model, kp_models, cfg, device,
             subpixel=not args.no_subpixel,
         )
-        all_detections[img_path] = {
-            r.detection.class_name: [r.kp_x, r.kp_y]
-            for r in results
-        }
+        detected_2d = {r.detection.class_name: [r.kp_x, r.kp_y] for r in results}
 
-    # ── Calibration ───────────────────────────────────────────────────────
-    # Reference image is always included first using its manually specified
-    # 2D coords.  Query images are included only when all landmarks are detected
-    # to ensure a consistent point configuration for calibration.
-    print("\nCalibrating camera…")
-    calib_pts = [ref_image_pts]
-    for img_path in image_paths:
-        dets = all_detections[img_path]
-        if all(c in dets for c in class_names):
-            pts = np.array([dets[c] for c in class_names], dtype=np.float32)
-            # Scale keypoints to reference resolution if image size differs
-            img_check  = cv2.imread(img_path)
-            q_h, q_w   = img_check.shape[:2]
-            if q_w != ref_W_px or q_h != ref_H_px:
-                pts[:, 0] *= ref_W_px / q_w
-                pts[:, 1] *= ref_H_px / q_h
-            calib_pts.append(pts)
-
-    print(
-        f"  Images used for calibration: {len(calib_pts)} "
-        f"(1 reference + {len(calib_pts) - 1} query)"
-    )
-
-    if len(calib_pts) < 3:
-        print("ERROR: need at least 3 images with all landmarks detected for calibration.")
-        sys.exit(1)
-
-    K, rvecs, tvecs = calibrate_camera(calib_pts, world_pts, image_size)
-
-    # Reference camera pose is rvecs[0] / tvecs[0] (first entry in calib_pts)
-    P_ref = projection_matrix(K, rvecs[0], tvecs[0])
-
-    # ── Pass 2: align each query image ────────────────────────────────────
-    print(f"\nPass 2: aligning {len(image_paths)} image(s) → {out_dir}\n")
-
-    n_success = 0
-    for img_path in image_paths:
-        stem     = Path(img_path).stem
         out_path = str(out_dir / f"{stem}_aligned.jpg")
         success  = align_image(
             query_path=img_path,
             class_names=class_names,
             world_pts=world_pts,
-            detected_2d=all_detections[img_path],
-            K=K,
+            detected_2d=detected_2d,
             P_ref=P_ref,
-            ref_size=(ref_W_px, ref_H_px),
+            ref_size=ref_size,
             output_path=out_path,
-            min_points=args.min_points,
+            min_inliers=args.min_inliers,
             ransac_reproj_threshold=args.ransac_threshold,
         )
         if success:
