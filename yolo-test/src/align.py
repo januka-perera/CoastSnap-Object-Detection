@@ -231,6 +231,26 @@ def align_image(
         )
         return False
 
+    # ── Load query image and check resolution ────────────────────────────
+    query_img = cv2.imread(query_path)
+    if query_img is None:
+        print(f"  [SKIP] {stem}: cannot read image")
+        return False
+
+    ref_W, ref_H = ref_size
+    q_H, q_W    = query_img.shape[:2]
+
+    # K was calibrated in reference image pixel space.  If the query image
+    # has a different resolution, scale the detected 2D keypoints to match
+    # the reference coordinate system before calling solvePnPRansac.
+    scale_x = ref_W / q_W
+    scale_y = ref_H / q_H
+    if scale_x != 1.0 or scale_y != 1.0:
+        src_2d_arr = np.array(src_2d, dtype=np.float32)
+        src_2d_arr[:, 0] *= scale_x
+        src_2d_arr[:, 1] *= scale_y
+        src_2d = src_2d_arr.tolist()
+
     src_2d = np.array(src_2d, dtype=np.float32).reshape(-1, 1, 2)
     src_3d = np.array(src_3d, dtype=np.float32).reshape(-1, 1, 3)
 
@@ -253,15 +273,14 @@ def align_image(
     )
 
     # ── Plane homography and warp ─────────────────────────────────────────
+    # H is computed in reference pixel space.  Resize the query image to
+    # reference resolution first so the warp is applied consistently.
     P_query = projection_matrix(K, rvec, tvec)
     H       = plane_homography_z0(P_ref, P_query)
 
-    query_img = cv2.imread(query_path)
-    if query_img is None:
-        print(f"  [SKIP] {stem}: cannot read image")
-        return False
+    if q_W != ref_W or q_H != ref_H:
+        query_img = cv2.resize(query_img, (ref_W, ref_H))
 
-    ref_W, ref_H = ref_size
     aligned = cv2.warpPerspective(query_img, H, (ref_W, ref_H))
     cv2.imwrite(output_path, aligned)
     return True
@@ -392,6 +411,12 @@ def main():
         dets = all_detections[img_path]
         if all(c in dets for c in class_names):
             pts = np.array([dets[c] for c in class_names], dtype=np.float32)
+            # Scale keypoints to reference resolution if image size differs
+            img_check  = cv2.imread(img_path)
+            q_h, q_w   = img_check.shape[:2]
+            if q_w != ref_W_px or q_h != ref_H_px:
+                pts[:, 0] *= ref_W_px / q_w
+                pts[:, 1] *= ref_H_px / q_h
             calib_pts.append(pts)
 
     print(
