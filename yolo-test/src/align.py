@@ -224,9 +224,10 @@ def align_image(
             src_3d.append(world_pts[i])
             matched_cls.append(cls)
 
-    if len(src_2d) < min_points:
+    n_required = len(class_names)
+    if len(src_2d) < n_required:
         print(
-            f"  [SKIP] {stem}: {len(src_2d)}/{min_points} keypoints matched "
+            f"  [SKIP] {stem}: {len(src_2d)}/{n_required} landmarks detected "
             f"— found {matched_cls}"
         )
         return False
@@ -313,7 +314,8 @@ def main():
                              "(<class_name>_best.pt).")
     parser.add_argument("--output-dir",          default="./aligned")
     parser.add_argument("--min-points",          type=int, default=4,
-                        help="Minimum inlier keypoints required for solvePnPRansac.")
+                        help="Minimum RANSAC inlier keypoints required (must be ≥4). "
+                             "All landmarks must be detected regardless of this value.")
     parser.add_argument("--ransac-threshold",    type=float, default=10.0,
                         help="RANSAC reprojection error threshold in pixels.")
     parser.add_argument("--no-subpixel",         action="store_true")
