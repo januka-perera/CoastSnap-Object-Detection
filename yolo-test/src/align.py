@@ -30,9 +30,9 @@ estimate focal length f independently for each image under the assumptions:
   - Principal point at image centre: cx = W/2, cy = H/2
   - No lens distortion
 
-With 5 point correspondences this gives 10 equations and 7 unknowns
-(f + 3 rotation + 3 translation), an overdetermined system solved by
-Levenberg-Marquardt via scipy.optimize.least_squares.
+With 5 point correspondences this gives 10 equations and 9 unknowns
+(f + cx + cy + 3 rotation + 3 translation), a marginally overdetermined
+system solved by Levenberg-Marquardt via scipy.optimize.least_squares.
 
 reference_keypoints.json format
 --------------------------------
@@ -162,7 +162,7 @@ def estimate_camera_pose(
         )
 
     W, H   = image_size
-    cx, cy = W / 2.0, H / 2.0
+    cx_init, cy_init = W / 2.0, H / 2.0
 
     pts_3d = world_pts.astype(np.float64).reshape(-1, 1, 3)
     pts_2d = image_pts.astype(np.float64).reshape(-1, 1, 2)
@@ -170,8 +170,8 @@ def estimate_camera_pose(
     # ── Step 1: RANSAC with initial K to obtain a robust starting pose ────
     f_init = float(max(W, H))
     K_init = np.array(
-        [[f_init, 0.,    cx],
-         [0.,    f_init, cy],
+        [[f_init, 0.,    cx_init],
+         [0.,    f_init, cy_init],
          [0.,    0.,      1.]], dtype=np.float64,
     )
 
@@ -187,13 +187,13 @@ def estimate_camera_pose(
 
     inlier_idx = inliers0.ravel()
 
-    # ── Step 2: LM refinement of f + pose jointly on inlier subset ───────
+    # ── Step 2: LM refinement of f + cx + cy + pose jointly on inlier subset ─
     pts_3d_in = world_pts[inlier_idx].astype(np.float64)
     pts_2d_in = image_pts[inlier_idx].astype(np.float64)
 
     def _residuals(params):
-        f, rx, ry, rz, tx, ty, tz = params
-        K_ = np.array([[f, 0., cx], [0., f, cy], [0., 0., 1.]], dtype=np.float64)
+        f, cx_, cy_, rx, ry, rz, tx, ty, tz = params
+        K_ = np.array([[f, 0., cx_], [0., f, cy_], [0., 0., 1.]], dtype=np.float64)
         rv = np.array([rx, ry, rz], dtype=np.float64)
         tv = np.array([tx, ty, tz], dtype=np.float64)
         proj, _ = cv2.projectPoints(
@@ -201,10 +201,10 @@ def estimate_camera_pose(
         )
         return (proj.reshape(-1, 2) - pts_2d_in).ravel()
 
-    x0  = np.concatenate([[f_init], rvec0.ravel(), tvec0.ravel()])
+    x0  = np.concatenate([[f_init, cx_init, cy_init], rvec0.ravel(), tvec0.ravel()])
     res = _lsq(_residuals, x0, method="lm")
 
-    f, rx, ry, rz, tx, ty, tz = res.x
+    f, cx, cy, rx, ry, rz, tx, ty, tz = res.x
 
     if f <= 0:
         return None, None, None, None
@@ -348,6 +348,7 @@ def align_image(
 
     print(
         f"  {stem}: f={K_query[0, 0]:.1f} px  "
+        f"cx={K_query[0, 2]:.1f} cy={K_query[1, 2]:.1f}  "
         f"inliers={n_inliers}/{len(src_2d)}"
     )
 
@@ -449,6 +450,7 @@ def main():
         sys.exit(1)
     print(
         f"  f={K_ref[0, 0]:.1f} px  "
+        f"cx={K_ref[0, 2]:.1f} cy={K_ref[1, 2]:.1f}  "
         f"inliers={inliers_ref.sum()}/{len(ref_image_pts)}"
     )
     P_ref = projection_matrix(K_ref, rvec_ref, tvec_ref)
