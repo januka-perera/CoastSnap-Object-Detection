@@ -312,15 +312,22 @@ def main():
     )
 
     # ── H_w2r: world → reference image ───────────────────────────────────
+    # Reference keypoints are manually annotated and trusted, so use
+    # least-squares (method=0) rather than RANSAC.  With only 5 points
+    # RANSAC is too aggressive and will fail if any single point has a
+    # reprojection error above the threshold.
     print("\nEstimating world→reference homography…")
-    H_w2r, mask_ref = cv2.findHomography(
-        world_xy, ref_image_pts, cv2.RANSAC, args.ransac_threshold
-    )
+    H_w2r, _ = cv2.findHomography(world_xy, ref_image_pts, method=0)
     if H_w2r is None:
         print("ERROR: could not estimate reference homography.")
         sys.exit(1)
-    n_ref_inliers = int(mask_ref.sum()) if mask_ref is not None else 0
-    print(f"  inliers={n_ref_inliers}/{len(world_xy)}")
+    # Report reprojection errors on the reference keypoints
+    ref_pts_h  = np.hstack([world_xy, np.ones((len(world_xy), 1), dtype=np.float32)])
+    proj       = (H_w2r @ ref_pts_h.T).T
+    proj       = proj[:, :2] / proj[:, 2:3]
+    errors     = np.linalg.norm(proj - ref_image_pts, axis=1)
+    print(f"  reprojection errors (px): " +
+          "  ".join(f"{c}={e:.1f}" for c, e in zip(class_names, errors)))
 
     # ── Plan-view setup ───────────────────────────────────────────────────
     M         = None
