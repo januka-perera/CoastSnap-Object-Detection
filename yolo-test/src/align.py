@@ -267,6 +267,74 @@ def plane_homography_z0(
 
 
 # ---------------------------------------------------------------------------
+# Plan-view rectification
+# ---------------------------------------------------------------------------
+
+def rectify_to_plan_view(
+    image: np.ndarray,
+    K: np.ndarray,
+    rvec: np.ndarray,
+    tvec: np.ndarray,
+    xlim: tuple,
+    ylim: tuple,
+    dx: float = 0.5,
+) -> np.ndarray:
+    """
+    Project a query image into a georeferenced plan view (top-down map).
+
+    World coordinates must be in the same local frame used when estimating
+    the camera pose (i.e. after subtracting xy_origin in main()).
+
+    Parameters
+    ----------
+    image  : (H, W, 3) BGR image — the *original* query image (not the aligned warp)
+    K      : (3, 3) camera intrinsic matrix
+    rvec   : (3,) or (3, 1) rotation vector (Rodrigues)
+    tvec   : (3,) or (3, 1) translation vector
+    xlim   : (x_min, x_max) – East bounds in local metres
+    ylim   : (y_min, y_max) – North bounds in local metres
+    dx     : grid resolution in metres per pixel (default 0.5)
+
+    Returns
+    -------
+    plan : (ny, nx, 3) BGR image; black pixels where the image has no coverage
+    """
+    img_H, img_W = image.shape[:2]
+
+    x_vals = np.arange(xlim[0], xlim[1] + dx, dx)
+    y_vals = np.arange(ylim[0], ylim[1] + dx, dx)
+    nx, ny = len(x_vals), len(y_vals)
+
+    # Row 0 = northernmost (y_max); East increases rightward.
+    Xg, Yg = np.meshgrid(x_vals, y_vals[::-1])
+    world_grid = np.stack(
+        [Xg.ravel(), Yg.ravel(), np.zeros(nx * ny, dtype=np.float64)], axis=1
+    ).astype(np.float64)
+
+    proj, _ = cv2.projectPoints(
+        world_grid.reshape(-1, 1, 3),
+        rvec.astype(np.float64),
+        tvec.astype(np.float64),
+        K.astype(np.float64),
+        None,
+    )
+    uv = proj.reshape(-1, 2)
+    u  = np.round(uv[:, 0]).astype(int)
+    v  = np.round(uv[:, 1]).astype(int)
+
+    valid = (u >= 0) & (u < img_W) & (v >= 0) & (v < img_H)
+    idx   = np.where(valid)[0]
+
+    plan = np.zeros((ny, nx, 3), dtype=np.uint8)
+    if idx.size:
+        rows = idx // nx
+        cols = idx  % nx
+        plan[rows, cols] = image[v[idx], u[idx]]
+
+    return plan
+
+
+# ---------------------------------------------------------------------------
 # Per-image alignment
 # ---------------------------------------------------------------------------
 
@@ -280,6 +348,10 @@ def align_image(
     output_path: str,
     min_inliers: int = 4,
     ransac_reproj_threshold: float = 10.0,
+    rectify_path: str = None,
+    xlim: tuple = None,
+    ylim: tuple = None,
+    dx: float = 0.5,
 ) -> bool:
     """
     Estimate per-image focal length and camera pose, compute the z=0 plane
@@ -292,6 +364,12 @@ def align_image(
     ref_size     : (width, height) of the reference image — output warp size.
     min_inliers  : minimum RANSAC inliers required (in addition to all landmarks
                    being detected).
+    rectify_path : if set, also save a plan-view rectified image here.
+    xlim         : (x_min, x_max) East bounds in local metres — required if
+                   rectify_path is set.
+    ylim         : (y_min, y_max) North bounds in local metres — required if
+                   rectify_path is set.
+    dx           : plan-view grid resolution in metres per pixel (default 0.5).
     """
     stem = Path(query_path).name
 
@@ -351,6 +429,18 @@ def align_image(
         f"inliers={n_inliers}/{len(src_2d)}"
     )
 
+    # ── Plan-view rectification (optional) ───────────────────────────────
+    if rectify_path is not None:
+        if xlim is None or ylim is None:
+            print(f"  [WARN] {stem}: --xlim/--ylim not set, skipping plan-view rectification")
+        else:
+            query_img_rect = cv2.imread(query_path)
+            plan = rectify_to_plan_view(
+                query_img_rect, K_query, rvec, tvec, xlim, ylim, dx
+            )
+            cv2.imwrite(rectify_path, plan)
+            print(f"  {stem}: plan-view saved → {rectify_path}")
+
     # ── Plane homography and warp ─────────────────────────────────────────
     # P_ref and P_query are both expressed in their own image coordinate
     # systems (different K), so the homography maps query pixels → reference
@@ -400,6 +490,23 @@ def main():
     parser.add_argument("--ransac-threshold",    type=float, default=10.0,
                         help="RANSAC reprojection error threshold in pixels.")
     parser.add_argument("--no-subpixel",         action="store_true")
+
+    # ── Plan-view rectification ───────────────────────────────────────────
+    parser.add_argument("--rectify",             action="store_true",
+                        help="Also produce a georeferenced plan-view image per image.")
+    parser.add_argument("--rectify-dir",         default="./rectified",
+                        help="Output directory for plan-view images (default: ./rectified).")
+    parser.add_argument("--xlim",                type=float, nargs=2,
+                        metavar=("X_MIN", "X_MAX"),
+                        help="East bounds in local metres (UTM X minus centroid). "
+                             "E.g. --xlim -300 500")
+    parser.add_argument("--ylim",                type=float, nargs=2,
+                        metavar=("Y_MIN", "Y_MAX"),
+                        help="North bounds in local metres (UTM Y minus centroid). "
+                             "E.g. --ylim -1800 -600")
+    parser.add_argument("--dx",                  type=float, default=0.5,
+                        help="Plan-view grid resolution in metres per pixel (default 0.5).")
+
     args = parser.parse_args()
 
     if args.kp_weights is None and args.kp_weights_dir is None:
@@ -487,6 +594,28 @@ def main():
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    rectify_dir = None
+    if args.rectify:
+        rectify_dir = Path(args.rectify_dir)
+        rectify_dir.mkdir(parents=True, exist_ok=True)
+        xlim = tuple(args.xlim) if args.xlim else None
+        ylim = tuple(args.ylim) if args.ylim else None
+        if xlim is None or ylim is None:
+            # Auto-compute from world_pts bounding box with 20% padding
+            x_min, x_max = world_pts[:, 0].min(), world_pts[:, 0].max()
+            y_min, y_max = world_pts[:, 1].min(), world_pts[:, 1].max()
+            x_pad = max((x_max - x_min) * 0.2, 50)
+            y_pad = max((y_max - y_min) * 0.2, 50)
+            xlim = (x_min - x_pad, x_max + x_pad)
+            ylim = (y_min - y_pad, y_max + y_pad)
+            print(
+                f"\n[rectify] Auto-computed bounds (local coords):\n"
+                f"  xlim = ({xlim[0]:.1f}, {xlim[1]:.1f}) m\n"
+                f"  ylim = ({ylim[0]:.1f}, {ylim[1]:.1f}) m\n"
+                f"  Override with --xlim X_MIN X_MAX --ylim Y_MIN Y_MAX"
+            )
+        print(f"[rectify] dx = {args.dx} m/px  →  output dir: {rectify_dir}\n")
+
     # ── Detect keypoints then align each query image ──────────────────────
     print(f"\nProcessing {len(image_paths)} query image(s) → {out_dir}\n")
 
@@ -501,8 +630,10 @@ def main():
         )
         detected_2d = {r.detection.class_name: [r.kp_x, r.kp_y] for r in results}
 
-        out_path = str(out_dir / f"{stem}_aligned.jpg")
-        success  = align_image(
+        out_path     = str(out_dir / f"{stem}_aligned.jpg")
+        rectify_path = str(rectify_dir / f"{stem}_plan.jpg") if rectify_dir else None
+
+        success = align_image(
             query_path=img_path,
             class_names=class_names,
             world_pts=world_pts,
@@ -512,6 +643,10 @@ def main():
             output_path=out_path,
             min_inliers=args.min_inliers,
             ransac_reproj_threshold=args.ransac_threshold,
+            rectify_path=rectify_path,
+            xlim=xlim if rectify_dir else None,
+            ylim=ylim if rectify_dir else None,
+            dx=args.dx,
         )
         if success:
             n_success += 1
