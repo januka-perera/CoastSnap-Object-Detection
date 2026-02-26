@@ -355,6 +355,9 @@ def align_image(
     xlim: tuple = None,
     ylim: tuple = None,
     dx: float = 0.5,
+    K_ref: np.ndarray = None,
+    rvec_ref: np.ndarray = None,
+    tvec_ref: np.ndarray = None,
 ) -> bool:
     """
     Estimate per-image focal length and camera pose, compute the z=0 plane
@@ -373,6 +376,12 @@ def align_image(
     ylim         : (y_min, y_max) North bounds in local metres — required if
                    rectify_path is set.
     dx           : plan-view grid resolution in metres per pixel (default 0.5).
+    K_ref        : (3, 3) reference camera intrinsic matrix — required for
+                   plan-view rectification.
+    rvec_ref     : (3, 1) reference camera rotation vector — required for
+                   plan-view rectification.
+    tvec_ref     : (3, 1) reference camera translation vector — required for
+                   plan-view rectification.
     """
     stem = Path(query_path).name
 
@@ -432,18 +441,6 @@ def align_image(
         f"inliers={n_inliers}/{len(src_2d)}"
     )
 
-    # ── Plan-view rectification (optional) ───────────────────────────────
-    if rectify_path is not None:
-        if xlim is None or ylim is None:
-            print(f"  [WARN] {stem}: --xlim/--ylim not set, skipping plan-view rectification")
-        else:
-            query_img_rect = cv2.imread(query_path)
-            plan = rectify_to_plan_view(
-                query_img_rect, K_query, rvec, tvec, xlim, ylim, dx
-            )
-            cv2.imwrite(rectify_path, plan)
-            print(f"  {stem}: plan-view saved → {rectify_path}")
-
     # ── Plane homography and warp ─────────────────────────────────────────
     # P_ref and P_query are both expressed in their own image coordinate
     # systems (different K), so the homography maps query pixels → reference
@@ -458,6 +455,26 @@ def align_image(
     ref_W, ref_H = ref_size
     aligned = cv2.warpPerspective(query_img, H, (ref_W, ref_H))
     cv2.imwrite(output_path, aligned)
+
+    # ── Plan-view rectification (optional) ───────────────────────────────
+    # The virtual GCPs in reference.json have z=0 world coords derived from
+    # the reference camera's geometry, so P_ref is geometrically correct for
+    # the z=0 plane.  P_query carries parallax errors from using those same
+    # virtual GCPs for a different camera position, so we rectify from the
+    # aligned image (which already looks like the reference view) using P_ref
+    # rather than from the original query image using P_query.
+    if rectify_path is not None:
+        if xlim is None or ylim is None:
+            print(f"  [WARN] {stem}: --xlim/--ylim not set, skipping plan-view rectification")
+        elif K_ref is None or rvec_ref is None or tvec_ref is None:
+            print(f"  [WARN] {stem}: reference pose not provided, skipping plan-view rectification")
+        else:
+            plan = rectify_to_plan_view(
+                aligned, K_ref, rvec_ref, tvec_ref, xlim, ylim, dx
+            )
+            cv2.imwrite(rectify_path, plan)
+            print(f"  {stem}: plan-view saved → {rectify_path}")
+
     return True
 
 
@@ -650,6 +667,9 @@ def main():
             xlim=xlim if rectify_dir else None,
             ylim=ylim if rectify_dir else None,
             dx=args.dx,
+            K_ref=K_ref,
+            rvec_ref=rvec_ref,
+            tvec_ref=tvec_ref,
         )
         if success:
             n_success += 1
