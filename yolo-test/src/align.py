@@ -319,18 +319,21 @@ def rectify_to_plan_view(
         None,
     )
     uv = proj.reshape(-1, 2)
-    u  = np.round(uv[:, 0]).astype(int)
-    v  = np.round(uv[:, 1]).astype(int)
 
-    valid = (u >= 0) & (u < img_W) & (v >= 0) & (v < img_H)
-    idx   = np.where(valid)[0]
+    # Build float remap arrays — one value per output pixel.
+    # cv2.remap with INTER_LINEAR gives bilinear sub-pixel sampling,
+    # which is much sharper than nearest-neighbour integer lookup.
+    map_u = uv[:, 0].reshape(ny, nx).astype(np.float32)
+    map_v = uv[:, 1].reshape(ny, nx).astype(np.float32)
 
-    plan = np.zeros((ny, nx, 3), dtype=np.uint8)
-    if idx.size:
-        rows = idx // nx
-        cols = idx  % nx
-        plan[rows, cols] = image[v[idx], u[idx]]
-
+    # Pixels that project outside the image will be filled with black via
+    # BORDER_CONSTANT (the default).
+    plan = cv2.remap(
+        image, map_u, map_v,
+        interpolation=cv2.INTER_LINEAR,
+        borderMode=cv2.BORDER_CONSTANT,
+        borderValue=(0, 0, 0),
+    )
     return plan
 
 
