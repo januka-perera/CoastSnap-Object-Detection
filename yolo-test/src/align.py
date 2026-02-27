@@ -85,25 +85,39 @@ def load_reference_keypoints(path: str):
     """
     Load reference keypoints from JSON.
 
+    The JSON may contain an optional top-level "camera_pos" key with the
+    camera's UTM position [X, Y, Z].  All other keys are treated as GCPs
+    with "image" and "world" sub-keys.
+
     Returns
     -------
-    class_names   : ordered list of landmark class names
-    world_pts     : (N, 3) float32 — 3D world coordinates in local metres
-    ref_image_pts : (N, 2) float32 — 2D pixel coords in the reference image
+    class_names    : ordered list of landmark class names
+    world_pts      : (N, 3) float32 — 3D world coordinates in local metres
+    ref_image_pts  : (N, 2) float32 — 2D pixel coords in the reference image
+    camera_pos_utm : (3,) float64 UTM camera position, or None if not present
     """
     with open(path) as f:
         data = json.load(f)
+
+    camera_pos_utm = None
+    if "camera_pos" in data:
+        camera_pos_utm = np.array(data["camera_pos"], dtype=np.float64)
+
     class_names   = []
     world_pts     = []
     ref_image_pts = []
     for cls, val in data.items():
+        if cls == "camera_pos":
+            continue
         class_names.append(cls)
         world_pts.append(val["world"])
         ref_image_pts.append(val["image"])
+
     return (
         class_names,
         np.array(world_pts,     dtype=np.float32),
         np.array(ref_image_pts, dtype=np.float32),
+        camera_pos_utm,
     )
 
 
@@ -117,9 +131,10 @@ def estimate_camera_pose(
     image_size: tuple,
     ransac_reproj_threshold: float = 10.0,
     min_inliers: int = 4,
+    camera_pos: np.ndarray = None,
 ) -> tuple:
     """
-    Jointly estimate focal length f and camera pose [R|t] for a single image.
+    Estimate focal length f and camera pose [R|t] for a single image.
 
     Assumptions
     -----------
@@ -132,26 +147,26 @@ def estimate_camera_pose(
     --------
     1. solvePnPRansac with a fixed initial-guess K (f = max(W, H)) to get a
        robust initial pose and inlier set.
-    2. scipy.optimize.least_squares (LM) over inliers only to jointly refine
-       f + rvec + tvec (7 parameters, 2xN_inliers equations).
+    2. scipy.optimize.least_squares (LM) over inliers only to refine:
+         • camera_pos provided (4-DOF): f + rvec only; tvec = -R @ C is derived
+           from the known camera position.  Better constrained focal length.
+         • camera_pos=None (7-DOF): f + rvec + tvec jointly.
     3. Compute final inlier mask with refined parameters over all N points.
 
     Parameters
     ----------
     image_pts              : (N, 2) float32 — 2D pixel coordinates
-    world_pts              : (N, 3) float32 — 3D world coordinates
+    world_pts              : (N, 3) float32 — 3D world coordinates (local)
     image_size             : (width, height)
-    ransac_reproj_threshold: reprojection error threshold for RANSAC and
-                             final inlier counting (pixels)
+    ransac_reproj_threshold: reprojection error threshold in pixels
     min_inliers            : minimum inliers required; returns None on failure
+    camera_pos             : (3,) float64 camera centre in local (centroid-
+                             subtracted) world coordinates, or None to also
+                             estimate the camera position.
 
     Returns
     -------
-    K           : (3, 3) float64 camera matrix with estimated f
-    rvec        : (3, 1) float64 rotation vector
-    tvec        : (3, 1) float64 translation vector
-    inlier_mask : (N,) bool array — True for inlier points
-    Returns (None, None, None, None) on failure.
+    K, rvec, tvec, inlier_mask  — or (None, None, None, None) on failure.
     """
     try:
         from scipy.optimize import least_squares as _lsq
@@ -186,32 +201,59 @@ def estimate_camera_pose(
         return None, None, None, None
 
     inlier_idx = inliers0.ravel()
+    pts_3d_in  = world_pts[inlier_idx].astype(np.float64)
+    pts_2d_in  = image_pts[inlier_idx].astype(np.float64)
 
-    # ── Step 2: LM refinement of f + pose jointly on inlier subset ───────
-    pts_3d_in = world_pts[inlier_idx].astype(np.float64)
-    pts_2d_in = image_pts[inlier_idx].astype(np.float64)
+    # ── Step 2: LM refinement ────────────────────────────────────────────
+    if camera_pos is not None:
+        # 4-DOF: f + rvec, tvec derived from known camera centre C
+        C = camera_pos.astype(np.float64).reshape(3, 1)
 
-    def _residuals(params):
-        f, rx, ry, rz, tx, ty, tz = params
-        K_ = np.array([[f, 0., cx], [0., f, cy], [0., 0., 1.]], dtype=np.float64)
-        rv = np.array([rx, ry, rz], dtype=np.float64)
-        tv = np.array([tx, ty, tz], dtype=np.float64)
-        proj, _ = cv2.projectPoints(
-            pts_3d_in.reshape(-1, 1, 3), rv, tv, K_, None
-        )
-        return (proj.reshape(-1, 2) - pts_2d_in).ravel()
+        def _residuals(params):
+            f, rx, ry, rz = params
+            K_ = np.array([[f, 0., cx], [0., f, cy], [0., 0., 1.]], dtype=np.float64)
+            rv = np.array([rx, ry, rz], dtype=np.float64)
+            R_, _ = cv2.Rodrigues(rv)
+            tv = -R_ @ C
+            proj, _ = cv2.projectPoints(
+                pts_3d_in.reshape(-1, 1, 3), rv, tv, K_, None
+            )
+            return (proj.reshape(-1, 2) - pts_2d_in).ravel()
 
-    x0  = np.concatenate([[f_init], rvec0.ravel(), tvec0.ravel()])
-    res = _lsq(_residuals, x0, method="lm")
+        x0  = np.concatenate([[f_init], rvec0.ravel()])
+        res = _lsq(_residuals, x0, method="lm")
+        f, rx, ry, rz = res.x
 
-    f, rx, ry, rz, tx, ty, tz = res.x
+        if f <= 0:
+            return None, None, None, None
 
-    if f <= 0:
-        return None, None, None, None
+        K    = np.array([[f, 0., cx], [0., f, cy], [0., 0., 1.]], dtype=np.float64)
+        rvec = np.array([[rx], [ry], [rz]], dtype=np.float64)
+        R_,  _ = cv2.Rodrigues(rvec)
+        tvec = -R_ @ C
 
-    K    = np.array([[f, 0., cx], [0., f, cy], [0., 0., 1.]], dtype=np.float64)
-    rvec = np.array([[rx], [ry], [rz]], dtype=np.float64)
-    tvec = np.array([[tx], [ty], [tz]], dtype=np.float64)
+    else:
+        # 7-DOF: f + rvec + tvec jointly
+        def _residuals(params):
+            f, rx, ry, rz, tx, ty, tz = params
+            K_ = np.array([[f, 0., cx], [0., f, cy], [0., 0., 1.]], dtype=np.float64)
+            rv = np.array([rx, ry, rz], dtype=np.float64)
+            tv = np.array([tx, ty, tz], dtype=np.float64)
+            proj, _ = cv2.projectPoints(
+                pts_3d_in.reshape(-1, 1, 3), rv, tv, K_, None
+            )
+            return (proj.reshape(-1, 2) - pts_2d_in).ravel()
+
+        x0  = np.concatenate([[f_init], rvec0.ravel(), tvec0.ravel()])
+        res = _lsq(_residuals, x0, method="lm")
+        f, rx, ry, rz, tx, ty, tz = res.x
+
+        if f <= 0:
+            return None, None, None, None
+
+        K    = np.array([[f, 0., cx], [0., f, cy], [0., 0., 1.]], dtype=np.float64)
+        rvec = np.array([[rx], [ry], [rz]], dtype=np.float64)
+        tvec = np.array([[tx], [ty], [tz]], dtype=np.float64)
 
     # ── Step 3: final inlier mask over all N points ───────────────────────
     proj_all, _ = cv2.projectPoints(
@@ -332,30 +374,39 @@ def align_image(
     detected_2d: dict,
     P_ref: np.ndarray,
     ref_size: tuple,
-    output_path: str,
+    aligned_path: str,
     min_inliers: int = 4,
     ransac_reproj_threshold: float = 10.0,
     rectify: bool = False,
+    rectify_path: str = None,
     xlim: tuple = None,
     ylim: tuple = None,
     dx: float = None,
+    camera_pos_local: np.ndarray = None,
 ) -> bool:
     """
-    Estimate per-image focal length and camera pose, then either:
-      • align to the reference frame (default), or
-      • produce a north-up plan-view rectification (rectify=True).
+    Estimate per-image focal length and camera pose.
+
+    Always saves the image aligned to the reference frame to `aligned_path`.
+    When rectify=True, additionally saves a north-up plan-view image to
+    `rectify_path`.
 
     Parameters
     ----------
-    detected_2d  : dict mapping class_name → [kp_x, kp_y] in query image pixels.
-    P_ref        : (3, 4) reference camera projection matrix.
-    ref_size     : (width, height) of the reference image — output warp size.
-    min_inliers  : minimum RANSAC inliers required (in addition to all landmarks
-                   being detected).
-    rectify      : if True, produce a plan-view image instead of aligning to ref.
-    xlim         : (Emin, Emax) in centroid-subtracted metres (required if rectify).
-    ylim         : (Nmin, Nmax) in centroid-subtracted metres (required if rectify).
-    dx           : ground-sampling distance m/px (required if rectify).
+    detected_2d      : dict mapping class_name → [kp_x, kp_y] in query pixels.
+    P_ref            : (3, 4) reference camera projection matrix.
+    ref_size         : (width, height) of the reference image — output warp size.
+    min_inliers      : minimum RANSAC inliers required.
+    aligned_path     : output path for the reference-aligned image.
+    rectify          : if True, also produce a plan-view image.
+    rectify_path     : output path for the plan-view image (required if rectify).
+    xlim             : (Emin, Emax) in local metres (required if rectify).
+    ylim             : (Nmin, Nmax) in local metres (required if rectify).
+    dx               : ground-sampling distance m/px (required if rectify).
+    camera_pos_local : (3,) camera centre in local (centroid-subtracted) world
+                       coords.  When provided, fixes the camera position and
+                       estimates only f + rotation (4-DOF), giving a more
+                       accurate focal length and thus plan-view scale.
     """
     stem = Path(query_path).name
 
@@ -396,6 +447,7 @@ def align_image(
         src_2d, src_3d, (q_W, q_H),
         ransac_reproj_threshold=ransac_reproj_threshold,
         min_inliers=min_inliers,
+        camera_pos=camera_pos_local,
     )
 
     if K_query is None:
@@ -418,26 +470,26 @@ def align_image(
     # ── Build query projection matrix ────────────────────────────────────
     P_query = projection_matrix(K_query, rvec, tvec)
 
+    # ── Align to reference frame (always) ────────────────────────────────
+    # P_ref and P_query are both expressed in their own image coordinate
+    # systems (different K), so the homography maps query pixels →
+    # reference pixels without any manual resizing.
+    H = plane_homography_z0(P_ref, P_query)
+
+    if H is None:
+        print(f"  [SKIP] {stem}: plane homography is near-singular (degenerate pose)")
+        return False
+
+    ref_W, ref_H = ref_size
+    aligned = cv2.warpPerspective(query_img, H, (ref_W, ref_H))
+    cv2.imwrite(aligned_path, aligned)
+
+    # ── Plan-view rectification (optional) ───────────────────────────────
     if rectify:
-        # ── Plan-view rectification ───────────────────────────────────────
         plan = rectify_plan_view(query_img, P_query, xlim, ylim, dx)
-        cv2.imwrite(output_path, plan)
+        cv2.imwrite(rectify_path, plan)
         nx, ny = plan.shape[1], plan.shape[0]
         print(f"  {stem}: plan view saved ({nx}×{ny} px, dx={dx} m/px)")
-    else:
-        # ── Align to reference frame ──────────────────────────────────────
-        # P_ref and P_query are both expressed in their own image coordinate
-        # systems (different K), so the homography maps query pixels →
-        # reference pixels without any manual resizing.
-        H = plane_homography_z0(P_ref, P_query)
-
-        if H is None:
-            print(f"  [SKIP] {stem}: plane homography is near-singular (degenerate pose)")
-            return False
-
-        ref_W, ref_H = ref_size
-        aligned = cv2.warpPerspective(query_img, H, (ref_W, ref_H))
-        cv2.imwrite(output_path, aligned)
 
     return True
 
@@ -517,7 +569,7 @@ def main():
     print(f"Reference image : {args.reference}  ({ref_W_px}×{ref_H_px})")
 
     # ── Reference keypoints ───────────────────────────────────────────────
-    class_names, world_pts, ref_image_pts = load_reference_keypoints(
+    class_names, world_pts, ref_image_pts, camera_pos_utm = load_reference_keypoints(
         args.reference_keypoints
     )
     print(f"Landmarks       : {class_names}")
@@ -532,6 +584,19 @@ def main():
         f"UTM XY origin   : ({xy_origin[0]:.2f}, {xy_origin[1]:.2f})  "
         f"(subtracted for numerical stability)"
     )
+
+    # Convert camera UTM position to centroid-subtracted local coordinates
+    if camera_pos_utm is not None:
+        camera_pos_local = camera_pos_utm.copy()
+        camera_pos_local[:2] -= xy_origin
+        print(
+            f"Camera position : UTM ({camera_pos_utm[0]:.2f}, {camera_pos_utm[1]:.2f}, {camera_pos_utm[2]:.2f})  "
+            f"→ local ({camera_pos_local[0]:.2f}, {camera_pos_local[1]:.2f}, {camera_pos_local[2]:.2f})  "
+            f"[4-DOF mode]"
+        )
+    else:
+        camera_pos_local = None
+        print("Camera position : not provided — using 7-DOF estimation")
 
     if args.rectify:
         xlim_local = tuple(args.xlim)
@@ -551,6 +616,7 @@ def main():
         ref_image_pts, world_pts, ref_size,
         ransac_reproj_threshold=args.ransac_threshold,
         min_inliers=4,
+        camera_pos=camera_pos_local,
     )
     if K_ref is None:
         print("ERROR: could not estimate reference camera pose — too few inliers.")
@@ -616,22 +682,24 @@ def main():
         )
         detected_2d = {r.detection.class_name: [r.kp_x, r.kp_y] for r in results}
 
-        out_path = str(rectified_dir / f"{stem}_plan.jpg") if args.rectify \
-                   else str(aligned_dir / f"{stem}_aligned.jpg")
-        success  = align_image(
+        aligned_path  = str(aligned_dir   / f"{stem}_aligned.jpg")
+        rectify_path  = str(rectified_dir / f"{stem}_plan.jpg") if args.rectify else None
+        success = align_image(
             query_path=img_path,
             class_names=class_names,
             world_pts=world_pts,
             detected_2d=detected_2d,
             P_ref=P_ref,
             ref_size=ref_size,
-            output_path=out_path,
+            aligned_path=aligned_path,
             min_inliers=args.min_inliers,
             ransac_reproj_threshold=args.ransac_threshold,
             rectify=args.rectify,
+            rectify_path=rectify_path,
             xlim=xlim_local,
             ylim=ylim_local,
             dx=args.dx,
+            camera_pos_local=camera_pos_local,
         )
         if success:
             n_success += 1
