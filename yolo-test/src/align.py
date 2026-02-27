@@ -577,18 +577,28 @@ def main():
     # UTM eastings/northings are in the hundreds-of-thousands range.
     # Subtract the XY centroid for numerical stability in the nonlinear solve.
     # Z is left unchanged so z=0 still corresponds to the water surface.
-    xy_origin = world_pts[:, :2].mean(axis=0)
+    # When the camera position is known, use it as the local origin so the
+    # coordinate frame matches the CoastSnap/CIRN convention (camera at origin).
+    # Otherwise fall back to the GCP centroid for numerical stability.
+    if camera_pos_utm is not None:
+        xy_origin = camera_pos_utm[:2].copy()
+        print(
+            f"UTM XY origin   : ({xy_origin[0]:.2f}, {xy_origin[1]:.2f})  "
+            f"(camera position — local frame centred at camera)"
+        )
+    else:
+        xy_origin = world_pts[:, :2].mean(axis=0)
+        print(
+            f"UTM XY origin   : ({xy_origin[0]:.2f}, {xy_origin[1]:.2f})  "
+            f"(GCP centroid — camera position not provided)"
+        )
+
     world_pts = world_pts.copy()
     world_pts[:, :2] -= xy_origin
-    print(
-        f"UTM XY origin   : ({xy_origin[0]:.2f}, {xy_origin[1]:.2f})  "
-        f"(subtracted for numerical stability)"
-    )
 
-    # Convert camera UTM position to centroid-subtracted local coordinates
     if camera_pos_utm is not None:
         camera_pos_local = camera_pos_utm.copy()
-        camera_pos_local[:2] -= xy_origin
+        camera_pos_local[:2] -= xy_origin   # → (0, 0, Z_cam) by construction
         print(
             f"Camera position : UTM ({camera_pos_utm[0]:.2f}, {camera_pos_utm[1]:.2f}, {camera_pos_utm[2]:.2f})  "
             f"→ local ({camera_pos_local[0]:.2f}, {camera_pos_local[1]:.2f}, {camera_pos_local[2]:.2f})  "
