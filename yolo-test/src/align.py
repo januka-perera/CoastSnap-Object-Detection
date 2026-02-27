@@ -260,24 +260,36 @@ def rectify_plan_view(
     -------
     plan : (ny, nx, 3) BGR plan-view image.
     """
-    B = P[:, [0, 1, 3]]          # 3×3: maps [X, Y, 1]^T → image homogeneous
-
     Emin, Emax = xlim
     Nmin, Nmax = ylim
 
     nx = int(round((Emax - Emin) / dx))
     ny = int(round((Nmax - Nmin) / dx))
 
-    # Map plan pixels → world [X, Y, 1]^T then → image coords
-    # Plan pixel (c, r) → world (Emin + c*dx, Nmax - r*dx)
-    M = np.array([
-        [1 / dx,      0,  -Emin / dx],
-        [0,      -1 / dx,  Nmax / dx],
-        [0,           0,           1],
-    ], dtype=np.float64)
+    # Build world coordinate grid (north-up: row 0 = Nmax, row ny-1 = Nmin)
+    # col c → X = Emin + c*dx
+    # row r → Y = Nmax - r*dx
+    C, R = np.meshgrid(np.arange(nx), np.arange(ny))
+    X = Emin + C * dx
+    Y = Nmax - R * dx
 
-    H = M @ np.linalg.inv(B)
-    return cv2.warpPerspective(image, H, (nx, ny))
+    # Project world [X, Y, 1] → image homogeneous via B = P[:, [0,1,3]]
+    B = P[:, [0, 1, 3]]
+    XY1 = np.stack([X, Y, np.ones_like(X)], axis=0).reshape(3, -1)  # (3, nx*ny)
+    uvw = B @ XY1  # (3, nx*ny)
+
+    # Perspective division then nearest-neighbour rounding (matches MATLAB toolbox)
+    u = np.round(uvw[0] / uvw[2]).astype(int)
+    v = np.round(uvw[1] / uvw[2]).astype(int)
+
+    # Keep only pixels that fall within the image
+    img_h, img_w = image.shape[:2]
+    valid = (u >= 0) & (u < img_w) & (v >= 0) & (v < img_h)
+
+    # Copy pixels from source image into plan view
+    plan = np.zeros((ny, nx, 3), dtype=np.uint8)
+    plan[R.ravel()[valid], C.ravel()[valid]] = image[v[valid], u[valid]]
+    return plan
 
 
 def plane_homography_z0(
