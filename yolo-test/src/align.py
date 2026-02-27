@@ -133,7 +133,7 @@ def estimate_camera_pose(
     1. solvePnPRansac with a fixed initial-guess K (f = max(W, H)) to get a
        robust initial pose and inlier set.
     2. scipy.optimize.least_squares (LM) over inliers only to jointly refine
-       f + rvec + tvec (7 parameters, 2×N_inliers equations).
+       f + rvec + tvec (7 parameters, 2xN_inliers equations).
     3. Compute final inlier mask with refined parameters over all N points.
 
     Parameters
@@ -237,6 +237,49 @@ def projection_matrix(
     return K @ np.hstack([R, tvec.reshape(3, 1)])
 
 
+def rectify_plan_view(
+    image: np.ndarray,
+    P: np.ndarray,
+    xlim: tuple,
+    ylim: tuple,
+    dx: float,
+) -> np.ndarray:
+    """
+    Warp an image to a north-up plan (bird's-eye) view via the z=0 plane.
+
+    Parameters
+    ----------
+    image : BGR image array (H, W, 3)
+    P     : (3, 4) camera projection matrix in the **centroid-subtracted**
+            world coordinate system (same system used when estimating the pose).
+    xlim  : (Emin, Emax) in centroid-subtracted metres — output Easting extent.
+    ylim  : (Nmin, Nmax) in centroid-subtracted metres — output Northing extent.
+    dx    : ground-sampling distance in metres per output pixel.
+
+    Returns
+    -------
+    plan : (ny, nx, 3) BGR plan-view image.
+    """
+    B = P[:, [0, 1, 3]]          # 3×3: maps [X, Y, 1]^T → image homogeneous
+
+    Emin, Emax = xlim
+    Nmin, Nmax = ylim
+
+    nx = int(round((Emax - Emin) / dx))
+    ny = int(round((Nmax - Nmin) / dx))
+
+    # Map plan pixels → world [X, Y, 1]^T then → image coords
+    # Plan pixel (c, r) → world (Emin + c*dx, Nmax - r*dx)
+    M = np.array([
+        [1 / dx,      0,  -Emin / dx],
+        [0,      -1 / dx,  Nmax / dx],
+        [0,           0,           1],
+    ], dtype=np.float64)
+
+    H = M @ np.linalg.inv(B)
+    return cv2.warpPerspective(image, H, (nx, ny))
+
+
 def plane_homography_z0(
     P_ref: np.ndarray,
     P_query: np.ndarray,
@@ -280,10 +323,15 @@ def align_image(
     output_path: str,
     min_inliers: int = 4,
     ransac_reproj_threshold: float = 10.0,
+    rectify: bool = False,
+    xlim: tuple = None,
+    ylim: tuple = None,
+    dx: float = None,
 ) -> bool:
     """
-    Estimate per-image focal length and camera pose, compute the z=0 plane
-    homography relative to the reference camera, and warp the query image.
+    Estimate per-image focal length and camera pose, then either:
+      • align to the reference frame (default), or
+      • produce a north-up plan-view rectification (rectify=True).
 
     Parameters
     ----------
@@ -292,6 +340,10 @@ def align_image(
     ref_size     : (width, height) of the reference image — output warp size.
     min_inliers  : minimum RANSAC inliers required (in addition to all landmarks
                    being detected).
+    rectify      : if True, produce a plan-view image instead of aligning to ref.
+    xlim         : (Emin, Emax) in centroid-subtracted metres (required if rectify).
+    ylim         : (Nmin, Nmax) in centroid-subtracted metres (required if rectify).
+    dx           : ground-sampling distance m/px (required if rectify).
     """
     stem = Path(query_path).name
 
@@ -351,20 +403,30 @@ def align_image(
         f"inliers={n_inliers}/{len(src_2d)}"
     )
 
-    # ── Plane homography and warp ─────────────────────────────────────────
-    # P_ref and P_query are both expressed in their own image coordinate
-    # systems (different K), so the homography maps query pixels → reference
-    # pixels without any manual resizing.
+    # ── Build query projection matrix ────────────────────────────────────
     P_query = projection_matrix(K_query, rvec, tvec)
-    H       = plane_homography_z0(P_ref, P_query)
 
-    if H is None:
-        print(f"  [SKIP] {stem}: plane homography is near-singular (degenerate pose)")
-        return False
+    if rectify:
+        # ── Plan-view rectification ───────────────────────────────────────
+        plan = rectify_plan_view(query_img, P_query, xlim, ylim, dx)
+        cv2.imwrite(output_path, plan)
+        nx, ny = plan.shape[1], plan.shape[0]
+        print(f"  {stem}: plan view saved ({nx}×{ny} px, dx={dx} m/px)")
+    else:
+        # ── Align to reference frame ──────────────────────────────────────
+        # P_ref and P_query are both expressed in their own image coordinate
+        # systems (different K), so the homography maps query pixels →
+        # reference pixels without any manual resizing.
+        H = plane_homography_z0(P_ref, P_query)
 
-    ref_W, ref_H = ref_size
-    aligned = cv2.warpPerspective(query_img, H, (ref_W, ref_H))
-    cv2.imwrite(output_path, aligned)
+        if H is None:
+            print(f"  [SKIP] {stem}: plane homography is near-singular (degenerate pose)")
+            return False
+
+        ref_W, ref_H = ref_size
+        aligned = cv2.warpPerspective(query_img, H, (ref_W, ref_H))
+        cv2.imwrite(output_path, aligned)
+
     return True
 
 
@@ -400,7 +462,26 @@ def main():
     parser.add_argument("--ransac-threshold",    type=float, default=10.0,
                         help="RANSAC reprojection error threshold in pixels.")
     parser.add_argument("--no-subpixel",         action="store_true")
+
+    # Plan-view rectification
+    parser.add_argument("--rectify",             action="store_true",
+                        help="Produce a north-up plan-view image instead of "
+                             "aligning to the reference frame.")
+    parser.add_argument("--xlim",                type=float, nargs=2,
+                        metavar=("E_MIN", "E_MAX"),
+                        help="Easting extent in UTM metres (required with --rectify).")
+    parser.add_argument("--ylim",                type=float, nargs=2,
+                        metavar=("N_MIN", "N_MAX"),
+                        help="Northing extent in UTM metres (required with --rectify).")
+    parser.add_argument("--dx",                  type=float, default=None,
+                        help="Ground-sampling distance in metres/pixel "
+                             "(required with --rectify).")
+
     args = parser.parse_args()
+
+    if args.rectify:
+        if args.xlim is None or args.ylim is None or args.dx is None:
+            parser.error("--rectify requires --xlim, --ylim, and --dx.")
 
     if args.kp_weights is None and args.kp_weights_dir is None:
         parser.error("Provide --kp-weights (single model) or --kp-weights-dir (per-class).")
@@ -436,6 +517,20 @@ def main():
         f"UTM XY origin   : ({xy_origin[0]:.2f}, {xy_origin[1]:.2f})  "
         f"(subtracted for numerical stability)"
     )
+
+    # Convert user-supplied UTM xlim/ylim to centroid-subtracted coordinates
+    # so they are consistent with the coordinate system used for pose estimation.
+    if args.rectify:
+        xlim_local = (args.xlim[0] - xy_origin[0], args.xlim[1] - xy_origin[0])
+        ylim_local = (args.ylim[0] - xy_origin[1], args.ylim[1] - xy_origin[1])
+        print(
+            f"Plan-view extents (local): "
+            f"X=[{xlim_local[0]:.1f}, {xlim_local[1]:.1f}]  "
+            f"Y=[{ylim_local[0]:.1f}, {ylim_local[1]:.1f}]  "
+            f"dx={args.dx} m/px"
+        )
+    else:
+        xlim_local = ylim_local = None
 
     # ── Estimate reference camera pose ────────────────────────────────────
     print("\nEstimating reference camera pose…")
@@ -501,7 +596,8 @@ def main():
         )
         detected_2d = {r.detection.class_name: [r.kp_x, r.kp_y] for r in results}
 
-        out_path = str(out_dir / f"{stem}_aligned.jpg")
+        suffix   = "_plan" if args.rectify else "_aligned"
+        out_path = str(out_dir / f"{stem}{suffix}.jpg")
         success  = align_image(
             query_path=img_path,
             class_names=class_names,
@@ -512,6 +608,10 @@ def main():
             output_path=out_path,
             min_inliers=args.min_inliers,
             ransac_reproj_threshold=args.ransac_threshold,
+            rectify=args.rectify,
+            xlim=xlim_local,
+            ylim=ylim_local,
+            dx=args.dx,
         )
         if success:
             n_success += 1
