@@ -455,7 +455,10 @@ def main():
     parser.add_argument("--kp-weights-dir",      default=None,
                         help="Directory of per-class keypoint models "
                              "(<class_name>_best.pt).")
-    parser.add_argument("--output-dir",          default="./aligned")
+    parser.add_argument("--output-dir",          default="./aligned",
+                        help="Output directory for aligned images (default: ./aligned).")
+    parser.add_argument("--rectify-dir",         default="./rectified",
+                        help="Output directory for plan-view images (default: ./rectified).")
     parser.add_argument("--min-inliers",         type=int, default=4,
                         help="Minimum RANSAC inliers required per image (≥4). "
                              "All landmarks must also be detected.")
@@ -469,10 +472,10 @@ def main():
                              "aligning to the reference frame.")
     parser.add_argument("--xlim",                type=float, nargs=2,
                         metavar=("E_MIN", "E_MAX"),
-                        help="Easting extent in UTM metres (required with --rectify).")
+                        help="Easting extent in local metres (required with --rectify).")
     parser.add_argument("--ylim",                type=float, nargs=2,
                         metavar=("N_MIN", "N_MAX"),
-                        help="Northing extent in UTM metres (required with --rectify).")
+                        help="Northing extent in local metres (required with --rectify).")
     parser.add_argument("--dx",                  type=float, default=None,
                         help="Ground-sampling distance in metres/pixel "
                              "(required with --rectify).")
@@ -518,11 +521,9 @@ def main():
         f"(subtracted for numerical stability)"
     )
 
-    # Convert user-supplied UTM xlim/ylim to centroid-subtracted coordinates
-    # so they are consistent with the coordinate system used for pose estimation.
     if args.rectify:
-        xlim_local = (args.xlim[0] - xy_origin[0], args.xlim[1] - xy_origin[0])
-        ylim_local = (args.ylim[0] - xy_origin[1], args.ylim[1] - xy_origin[1])
+        xlim_local = tuple(args.xlim)
+        ylim_local = tuple(args.ylim)
         print(
             f"Plan-view extents (local): "
             f"X=[{xlim_local[0]:.1f}, {xlim_local[1]:.1f}]  "
@@ -579,11 +580,18 @@ def main():
             if p.resolve() != ref_resolved
         )
 
-    out_dir = Path(args.output_dir)
-    out_dir.mkdir(parents=True, exist_ok=True)
+    aligned_dir   = Path(args.output_dir)
+    rectified_dir = Path(args.rectify_dir)
+    aligned_dir.mkdir(parents=True, exist_ok=True)
+    if args.rectify:
+        rectified_dir.mkdir(parents=True, exist_ok=True)
 
     # ── Detect keypoints then align each query image ──────────────────────
-    print(f"\nProcessing {len(image_paths)} query image(s) → {out_dir}\n")
+    print(
+        f"\nProcessing {len(image_paths)} query image(s)\n"
+        f"  aligned   → {aligned_dir}\n"
+        + (f"  rectified → {rectified_dir}\n" if args.rectify else "")
+    )
 
     n_success = 0
     for img_path in image_paths:
@@ -596,8 +604,8 @@ def main():
         )
         detected_2d = {r.detection.class_name: [r.kp_x, r.kp_y] for r in results}
 
-        suffix   = "_plan" if args.rectify else "_aligned"
-        out_path = str(out_dir / f"{stem}{suffix}.jpg")
+        out_path = str(rectified_dir / f"{stem}_plan.jpg") if args.rectify \
+                   else str(aligned_dir / f"{stem}_aligned.jpg")
         success  = align_image(
             query_path=img_path,
             class_names=class_names,
