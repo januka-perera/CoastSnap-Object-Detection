@@ -131,10 +131,9 @@ def estimate_camera_pose(
     image_size: tuple,
     ransac_reproj_threshold: float = 10.0,
     min_inliers: int = 4,
-    camera_pos: np.ndarray = None,
 ) -> tuple:
     """
-    Estimate focal length f and camera pose [R|t] for a single image.
+    Jointly estimate focal length f and camera pose [R|t] for a single image.
 
     Assumptions
     -----------
@@ -147,26 +146,26 @@ def estimate_camera_pose(
     --------
     1. solvePnPRansac with a fixed initial-guess K (f = max(W, H)) to get a
        robust initial pose and inlier set.
-    2. scipy.optimize.least_squares (LM) over inliers only to refine:
-         • camera_pos provided (4-DOF): f + rvec only; tvec = -R @ C is derived
-           from the known camera position.  Better constrained focal length.
-         • camera_pos=None (7-DOF): f + rvec + tvec jointly.
+    2. scipy.optimize.least_squares (LM) over inliers only to jointly refine
+       f + rvec + tvec (7 parameters, 2xN_inliers equations).
     3. Compute final inlier mask with refined parameters over all N points.
 
     Parameters
     ----------
     image_pts              : (N, 2) float32 — 2D pixel coordinates
-    world_pts              : (N, 3) float32 — 3D world coordinates (local)
+    world_pts              : (N, 3) float32 — 3D world coordinates
     image_size             : (width, height)
-    ransac_reproj_threshold: reprojection error threshold in pixels
+    ransac_reproj_threshold: reprojection error threshold for RANSAC and
+                             final inlier counting (pixels)
     min_inliers            : minimum inliers required; returns None on failure
-    camera_pos             : (3,) float64 camera centre in local (centroid-
-                             subtracted) world coordinates, or None to also
-                             estimate the camera position.
 
     Returns
     -------
-    K, rvec, tvec, inlier_mask  — or (None, None, None, None) on failure.
+    K           : (3, 3) float64 camera matrix with estimated f
+    rvec        : (3, 1) float64 rotation vector
+    tvec        : (3, 1) float64 translation vector
+    inlier_mask : (N,) bool array — True for inlier points
+    Returns (None, None, None, None) on failure.
     """
     try:
         from scipy.optimize import least_squares as _lsq
@@ -201,59 +200,32 @@ def estimate_camera_pose(
         return None, None, None, None
 
     inlier_idx = inliers0.ravel()
-    pts_3d_in  = world_pts[inlier_idx].astype(np.float64)
-    pts_2d_in  = image_pts[inlier_idx].astype(np.float64)
 
-    # ── Step 2: LM refinement ────────────────────────────────────────────
-    if camera_pos is not None:
-        # 4-DOF: f + rvec, tvec derived from known camera centre C
-        C = camera_pos.astype(np.float64).reshape(3, 1)
+    # ── Step 2: LM refinement of f + pose jointly on inlier subset ───────
+    pts_3d_in = world_pts[inlier_idx].astype(np.float64)
+    pts_2d_in = image_pts[inlier_idx].astype(np.float64)
 
-        def _residuals(params):
-            f, rx, ry, rz = params
-            K_ = np.array([[f, 0., cx], [0., f, cy], [0., 0., 1.]], dtype=np.float64)
-            rv = np.array([rx, ry, rz], dtype=np.float64)
-            R_, _ = cv2.Rodrigues(rv)
-            tv = -R_ @ C
-            proj, _ = cv2.projectPoints(
-                pts_3d_in.reshape(-1, 1, 3), rv, tv, K_, None
-            )
-            return (proj.reshape(-1, 2) - pts_2d_in).ravel()
+    def _residuals(params):
+        f, rx, ry, rz, tx, ty, tz = params
+        K_ = np.array([[f, 0., cx], [0., f, cy], [0., 0., 1.]], dtype=np.float64)
+        rv = np.array([rx, ry, rz], dtype=np.float64)
+        tv = np.array([tx, ty, tz], dtype=np.float64)
+        proj, _ = cv2.projectPoints(
+            pts_3d_in.reshape(-1, 1, 3), rv, tv, K_, None
+        )
+        return (proj.reshape(-1, 2) - pts_2d_in).ravel()
 
-        x0  = np.concatenate([[f_init], rvec0.ravel()])
-        res = _lsq(_residuals, x0, method="lm")
-        f, rx, ry, rz = res.x
+    x0  = np.concatenate([[f_init], rvec0.ravel(), tvec0.ravel()])
+    res = _lsq(_residuals, x0, method="lm")
 
-        if f <= 0:
-            return None, None, None, None
+    f, rx, ry, rz, tx, ty, tz = res.x
 
-        K    = np.array([[f, 0., cx], [0., f, cy], [0., 0., 1.]], dtype=np.float64)
-        rvec = np.array([[rx], [ry], [rz]], dtype=np.float64)
-        R_,  _ = cv2.Rodrigues(rvec)
-        tvec = -R_ @ C
+    if f <= 0:
+        return None, None, None, None
 
-    else:
-        # 7-DOF: f + rvec + tvec jointly
-        def _residuals(params):
-            f, rx, ry, rz, tx, ty, tz = params
-            K_ = np.array([[f, 0., cx], [0., f, cy], [0., 0., 1.]], dtype=np.float64)
-            rv = np.array([rx, ry, rz], dtype=np.float64)
-            tv = np.array([tx, ty, tz], dtype=np.float64)
-            proj, _ = cv2.projectPoints(
-                pts_3d_in.reshape(-1, 1, 3), rv, tv, K_, None
-            )
-            return (proj.reshape(-1, 2) - pts_2d_in).ravel()
-
-        x0  = np.concatenate([[f_init], rvec0.ravel(), tvec0.ravel()])
-        res = _lsq(_residuals, x0, method="lm")
-        f, rx, ry, rz, tx, ty, tz = res.x
-
-        if f <= 0:
-            return None, None, None, None
-
-        K    = np.array([[f, 0., cx], [0., f, cy], [0., 0., 1.]], dtype=np.float64)
-        rvec = np.array([[rx], [ry], [rz]], dtype=np.float64)
-        tvec = np.array([[tx], [ty], [tz]], dtype=np.float64)
+    K    = np.array([[f, 0., cx], [0., f, cy], [0., 0., 1.]], dtype=np.float64)
+    rvec = np.array([[rx], [ry], [rz]], dtype=np.float64)
+    tvec = np.array([[tx], [ty], [tz]], dtype=np.float64)
 
     # ── Step 3: final inlier mask over all N points ───────────────────────
     proj_all, _ = cv2.projectPoints(
