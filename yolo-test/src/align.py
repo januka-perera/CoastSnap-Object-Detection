@@ -131,6 +131,7 @@ def estimate_camera_pose(
     image_size: tuple,
     ransac_reproj_threshold: float = 10.0,
     min_inliers: int = 4,
+    camera_pos: np.ndarray = None,
 ) -> tuple:
     """
     Jointly estimate focal length f and camera pose [R|t] for a single image.
