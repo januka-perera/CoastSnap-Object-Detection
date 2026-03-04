@@ -75,6 +75,7 @@ from predict import (
     load_per_class_models,
     run_pipeline,
 )
+from tides import get_tide_height
 
 
 # ---------------------------------------------------------------------------
@@ -258,9 +259,10 @@ def rectify_plan_view(
     xlim: tuple,
     ylim: tuple,
     dx: float,
+    z: float = 0.0,
 ) -> np.ndarray:
     """
-    Warp an image to a north-up plan (bird's-eye) view via the z=0 plane.
+    Warp an image to a north-up plan (bird's-eye) view via the z=h plane.
 
     Parameters
     ----------
@@ -270,6 +272,7 @@ def rectify_plan_view(
     xlim  : (Emin, Emax) in centroid-subtracted metres — output Easting extent.
     ylim  : (Nmin, Nmax) in centroid-subtracted metres — output Northing extent.
     dx    : ground-sampling distance in metres per output pixel.
+    z     : elevation of the rectification plane in metres (default 0 = MSL).
 
     Returns
     -------
@@ -288,8 +291,9 @@ def rectify_plan_view(
     X = Emin + C * dx
     Y = Nmax - R * dx
 
-    # Project world [X, Y, 1] → image homogeneous via B = P[:, [0,1,3]]
-    B = P[:, [0, 1, 3]]
+    # Project world [X, Y, z] → image homogeneous.
+    # For a general z=h plane: P*[X,Y,h,1]^T = P[:,0]*X + P[:,1]*Y + (P[:,2]*h + P[:,3])*1
+    B = np.column_stack([P[:, 0], P[:, 1], P[:, 2] * z + P[:, 3]])
     XY1 = np.stack([X, Y, np.ones_like(X)], axis=0).reshape(3, -1)  # (3, nx*ny)
     uvw = B @ XY1  # (3, nx*ny)
 
@@ -310,22 +314,23 @@ def rectify_plan_view(
 def plane_homography_z0(
     P_ref: np.ndarray,
     P_query: np.ndarray,
+    z: float = 0.0,
     cond_threshold: float = 1e8,
 ) -> np.ndarray:
     """
-    Compute the homography induced by the z=0 plane.
+    Compute the homography induced by the z=h plane.
 
-    For any point on z=0:  X_world = [X, Y, 0, 1]^T
-        p = P * X_world  =  P[:, [0,1,3]] * [X, Y, 1]^T
+    For any point on z=h:  X_world = [X, Y, h, 1]^T
+        p = P * X_world  =  P[:,0]*X + P[:,1]*Y + (P[:,2]*h + P[:,3])*1
 
     The homography mapping query image coords → reference image coords is:
-        H = P_ref[:, [0,1,3]] @ inv(P_query[:, [0,1,3]])
+        H = A_ref @ inv(A_query)  where A = [P[:,0], P[:,1], P[:,2]*h + P[:,3]]
 
     Uses np.linalg.solve for numerical stability instead of explicit inversion.
-    Returns None if P_query[:, [0,1,3]] is near-singular.
+    Returns None if A_query is near-singular.
     """
-    A = P_ref  [:, [0, 1, 3]]
-    B = P_query[:, [0, 1, 3]]
+    A = np.column_stack([P_ref  [:, 0], P_ref  [:, 1], P_ref  [:, 2] * z + P_ref  [:, 3]])
+    B = np.column_stack([P_query[:, 0], P_query[:, 1], P_query[:, 2] * z + P_query[:, 3]])
 
     if np.linalg.cond(B) > cond_threshold:
         return None
@@ -356,6 +361,7 @@ def align_image(
     ylim: tuple = None,
     dx: float = None,
     camera_pos_local: np.ndarray = None,
+    tide_height: float = 0.0,
 ) -> bool:
     """
     Estimate per-image focal length and camera pose.
@@ -437,7 +443,8 @@ def align_image(
 
     print(
         f"  {stem}: f={K_query[0, 0]:.1f} px  "
-        f"inliers={n_inliers}/{len(src_2d)}"
+        f"inliers={n_inliers}/{len(src_2d)}  "
+        f"tide={tide_height:.2f} m"
     )
 
     # ── Build query projection matrix ────────────────────────────────────
@@ -447,7 +454,7 @@ def align_image(
     # P_ref and P_query are both expressed in their own image coordinate
     # systems (different K), so the homography maps query pixels →
     # reference pixels without any manual resizing.
-    H = plane_homography_z0(P_ref, P_query)
+    H = plane_homography_z0(P_ref, P_query, z=tide_height)
 
     if H is None:
         print(f"  [SKIP] {stem}: plane homography is near-singular (degenerate pose)")
@@ -459,7 +466,7 @@ def align_image(
 
     # ── Plan-view rectification (optional) ───────────────────────────────
     if rectify:
-        plan = rectify_plan_view(query_img, P_query, xlim, ylim, dx)
+        plan = rectify_plan_view(query_img, P_query, xlim, ylim, dx, z=tide_height)
         cv2.imwrite(rectify_path, plan)
         nx, ny = plan.shape[1], plan.shape[0]
         print(f"  {stem}: plan view saved ({nx}×{ny} px, dx={dx} m/px)")
@@ -516,6 +523,16 @@ def main():
     parser.add_argument("--dx",                  type=float, default=None,
                         help="Ground-sampling distance in metres/pixel "
                              "(required with --rectify).")
+
+    # Tide height
+    parser.add_argument("--utm-zone",            type=int, default=None,
+                        help="MGA94/UTM zone number (e.g. 56 for Sydney). "
+                             "When provided, tide height is fetched per image "
+                             "and used as the rectification plane elevation. "
+                             "Falls back to 0 m on any error.")
+    parser.add_argument("--northern",            action="store_true",
+                        help="Set if the site is in the northern hemisphere "
+                             "(used for tide height lookup).")
 
     args = parser.parse_args()
 
@@ -658,6 +675,20 @@ def main():
     for img_path in image_paths:
         stem = Path(img_path).stem
 
+        # ── Tide height for this image ─────────────────────────────────────
+        tide_height = 0.0
+        if args.utm_zone is not None:
+            try:
+                tide_height = get_tide_height(
+                    img_path,
+                    keypoints_path=args.reference_keypoints,
+                    utm_zone=args.utm_zone,
+                    northern=args.northern,
+                )
+                print(f"  {stem}: tide height = {tide_height:.2f} m")
+            except Exception as exc:
+                print(f"  {stem}: tide lookup failed ({exc}), defaulting to 0 m")
+
         # Detect 2D landmark locations in this image
         results = run_pipeline(
             img_path, yolo_model, kp_models, cfg, device,
@@ -683,6 +714,7 @@ def main():
             ylim=ylim_local,
             dx=args.dx,
             camera_pos_local=camera_pos_local,
+            tide_height=tide_height,
         )
         if success:
             n_success += 1
