@@ -34,9 +34,9 @@ from eo_tides.utils import clip_models
 # ---------------------------------------------------------------------------
 
 TIDE_MODELS_DIR         = Path(r"C:\Users\z3551540\Code\Github\CoastSnap-Object-Detection\yolo-test\tide_models")
-TIDE_MODELS_CLIPPED_DIR = Path(r"C:\Users\z3551540\Code\Github\CoastSnap-Object-Detection\yolo-test\tide_models_clipped")
+TIDE_MODELS_CLIPPED_DIR = Path(r"C:\Users\z3551540\Code\Github\CoastSnap-Object-Detection\yolo-test\tide_models_clipped_2")
 CLIP_BBOX  = (144.7, -38.9, 152.7, -30.3)   # (lon_min, lat_min, lon_max, lat_max)
-TIDE_MODEL = "FES2022_load"
+TIDE_MODEL = "EOT20"
 
 
 # ---------------------------------------------------------------------------
@@ -144,3 +144,6 @@ if __name__ == "__main__":
         model=args.model,
     )
     print(f"Tide height: {height} m")
+
+
+
