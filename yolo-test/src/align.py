@@ -172,7 +172,8 @@ def estimate_camera_pose(
         pts_3d, pts_2d, K_init, None,
         reprojectionError=ransac_reproj_threshold * 3,  # loose; tightened in Step 3
         confidence=0.99,
-        iterationsCount=2000,
+        iterationsCount=10000,  # small N → sample many minimal sets
+        flags=cv2.SOLVEPNP_AP3P,  # robust minimal solver for N≥4
     )
     if not ok or inliers0 is None or len(inliers0) < min_inliers:
         return None, None, None, None
@@ -215,8 +216,22 @@ def estimate_camera_pose(
         )
         return (proj.reshape(-1, 2) - pts_2d_in).ravel()
 
+    def _score(x):
+        """Count final inliers over ALL input points at the real threshold."""
+        f, rx, ry, rz = x
+        K_ = np.array([[f, 0., cx], [0., f, cy], [0., 0., 1.]], dtype=np.float64)
+        rv = np.array([[rx], [ry], [rz]], dtype=np.float64)
+        proj, _ = cv2.projectPoints(
+            world_pts.astype(np.float64).reshape(-1, 1, 3), rv, tvec_fixed, K_, None
+        )
+        err = np.linalg.norm(proj.reshape(-1, 2) - image_pts, axis=1)
+        nin = int((err < ransac_reproj_threshold).sum())
+        med = float(np.median(err))
+        return nin, med
+
     best_res = None
-    best_cost = np.inf
+    best_nin = -1
+    best_med = np.inf
     for f_mult in (0.7, 1.0, 1.5, 2.5):
         f_start = np.clip(f_mult * max(W, H), f_lo, f_hi)
         x0 = np.array([f_start, *rvec_warm], dtype=np.float64)
@@ -228,9 +243,9 @@ def estimate_camera_pose(
             bounds=([f_lo, -np.inf, -np.inf, -np.inf],
                     [f_hi,  np.inf,  np.inf,  np.inf]),
         )
-        if res_try.cost < best_cost:
-            best_cost = res_try.cost
-            best_res = res_try
+        nin, med = _score(res_try.x)
+        if (nin > best_nin) or (nin == best_nin and med < best_med):
+            best_nin, best_med, best_res = nin, med, res_try
     res = best_res
 
     f, rx, ry, rz = res.x
@@ -438,14 +453,27 @@ def align_image(
     )
 
     if K_query is None:
-        print(f"  [SKIP] {stem}: pose estimation failed (too few RANSAC inliers)")
+        print(
+            f"  [SKIP] {stem}: pose estimation failed (RANSAC found <{min_inliers} "
+            f"inliers from {len(src_2d)} landmarks at {ransac_reproj_threshold*3:.0f}px)"
+        )
         return False
 
     n_inliers = int(inlier_mask.sum())
     if n_inliers < min_inliers:
+        # Per-landmark breakdown to identify systematic bad detectors
+        proj_dbg, _ = cv2.projectPoints(
+            np.array(src_3d, dtype=np.float64).reshape(-1, 1, 3),
+            rvec, tvec, K_query, None,
+        )
+        errs_dbg = np.linalg.norm(proj_dbg.reshape(-1, 2) - np.array(src_2d), axis=1)
+        detail = "  ".join(
+            f"{cls}={'IN' if e < ransac_reproj_threshold else 'OUT'}({e:.1f}px)"
+            for cls, e in zip(matched_cls, errs_dbg)
+        )
         print(
             f"  [SKIP] {stem}: only {n_inliers}/{len(src_2d)} inliers "
-            f"after refinement"
+            f"after refinement\n         {detail}"
         )
         return False
 
