@@ -30,9 +30,10 @@ estimate focal length f independently for each image under the assumptions:
   - Principal point at image centre: cx = W/2, cy = H/2
   - No lens distortion
 
-With 5 point correspondences this gives 10 equations and 7 unknowns
-(f + 3 rotation + 3 translation), an overdetermined system solved by
-Levenberg-Marquardt via scipy.optimize.least_squares.
+With 5 point correspondences this gives 10 equations and 4 unknowns
+(f + 3 rotation), translation is fixed to zero because the world is
+pre-shifted so the camera centre is at the origin.  Solved by
+scipy.optimize.least_squares (TRF, soft-L1 loss).
 
 reference_keypoints.json format
 --------------------------------
@@ -132,64 +133,37 @@ def estimate_camera_pose(
     image_size: tuple,
     ransac_reproj_threshold: float = 10.0,
     min_inliers: int = 4,
-    camera_pos: np.ndarray = None,
 ) -> tuple:
     """
-    Jointly estimate focal length f and camera pose [R|t] for a single image.
+    Estimate focal length f and rotation R for a single image, assuming the
+    camera centre is at the world origin (world points already shifted by C).
 
-    Assumptions
-    -----------
-    - Zero skew
-    - Square pixels: fx = fy = f
-    - Principal point at image centre: cx = W/2, cy = H/2
-    - No lens distortion
-
-    Strategy
-    --------
-    1. solvePnPRansac with a fixed initial-guess K (f = max(W, H)) to get a
-       robust initial pose and inlier set.
-    2. scipy.optimize.least_squares (LM) over inliers only to jointly refine
-       f + rvec + tvec (7 parameters, 2xN_inliers equations).
-    3. Compute final inlier mask with refined parameters over all N points.
-
-    Parameters
-    ----------
-    image_pts              : (N, 2) float32 — 2D pixel coordinates
-    world_pts              : (N, 3) float32 — 3D world coordinates
-    image_size             : (width, height)
-    ransac_reproj_threshold: reprojection error threshold for RANSAC and
-                             final inlier counting (pixels)
-    min_inliers            : minimum inliers required; returns None on failure
+    Model
+    -----
+    x ~ K [R | 0] X', where X' = X - C and C is the camera centre.
+    Unknowns: f + rvec (4 DOF). Translation is fixed tvec = 0.
 
     Returns
     -------
-    K           : (3, 3) float64 camera matrix with estimated f
-    rvec        : (3, 1) float64 rotation vector
-    tvec        : (3, 1) float64 translation vector
-    inlier_mask : (N,) bool array — True for inlier points
-    Returns (None, None, None, None) on failure.
+    K, rvec, tvec(=0), inlier_mask
     """
     try:
         from scipy.optimize import least_squares as _lsq
     except ImportError:
-        raise ImportError(
-            "scipy is required for per-image focal-length estimation. "
-            "Install with:  pip install scipy"
-        )
+        raise ImportError("scipy is required. Install with: pip install scipy")
 
-    W, H   = image_size
-    cx, cy = W / 2.0, H / 2.0
+    W, H = image_size
+    # Pixel-centre convention
+    cx, cy = (W - 1) / 2.0, (H - 1) / 2.0
 
     pts_3d = world_pts.astype(np.float64).reshape(-1, 1, 3)
     pts_2d = image_pts.astype(np.float64).reshape(-1, 1, 2)
 
-    # ── Step 1: RANSAC with initial K to obtain a robust starting pose ────
+    # ── Step 1: RANSAC bootstrap (gets a decent rvec) ────────────────────
     f_init = float(max(W, H))
-    K_init = np.array(
-        [[f_init, 0.,    cx],
-         [0.,    f_init, cy],
-         [0.,    0.,      1.]], dtype=np.float64,
-    )
+    K_init = np.array([[f_init, 0., cx],
+                       [0., f_init, cy],
+                       [0., 0., 1.]], dtype=np.float64)
 
     ok, rvec0, tvec0, inliers0 = cv2.solvePnPRansac(
         pts_3d, pts_2d, K_init, None,
@@ -197,37 +171,50 @@ def estimate_camera_pose(
         confidence=0.99,
         iterationsCount=2000,
     )
-
     if not ok or inliers0 is None or len(inliers0) < min_inliers:
         return None, None, None, None
 
     inlier_idx = inliers0.ravel()
-
-    # ── Step 2: LM refinement of f + pose jointly on inlier subset ───────
     pts_3d_in = world_pts[inlier_idx].astype(np.float64)
     pts_2d_in = image_pts[inlier_idx].astype(np.float64)
 
-    def _residuals(params):
-        f, rx, ry, rz, tx, ty, tz = params
-        K_ = np.array([[f, 0., cx], [0., f, cy], [0., 0., 1.]], dtype=np.float64)
-        rv = np.array([rx, ry, rz], dtype=np.float64)
-        tv = np.array([tx, ty, tz], dtype=np.float64)
+    # ── Step 2: refine f + rvec with tvec fixed to 0 ─────────────────────
+    tvec_fixed = np.zeros((3, 1), dtype=np.float64)
+
+    def _residuals(x):
+        f, rx, ry, rz = x
+        K_ = np.array([[f, 0., cx],
+                       [0., f, cy],
+                       [0., 0., 1.]], dtype=np.float64)
+        rvec = np.array([[rx], [ry], [rz]], dtype=np.float64)
         proj, _ = cv2.projectPoints(
-            pts_3d_in.reshape(-1, 1, 3), rv, tv, K_, None
+            pts_3d_in.reshape(-1, 1, 3), rvec, tvec_fixed, K_, None
         )
         return (proj.reshape(-1, 2) - pts_2d_in).ravel()
 
-    x0  = np.concatenate([[f_init], rvec0.ravel(), tvec0.ravel()])
-    res = _lsq(_residuals, x0, method="lm")
+    x0 = np.array([f_init, *rvec0.ravel()], dtype=np.float64)
 
-    f, rx, ry, rz, tx, ty, tz = res.x
+    f_lo = 0.5 * max(W, H)
+    f_hi = 5.0 * max(W, H)
 
+    res = _lsq(
+        _residuals, x0,
+        method="trf",
+        loss="soft_l1",
+        f_scale=5.0,
+        bounds=([f_lo, -np.inf, -np.inf, -np.inf],
+                [f_hi,  np.inf,  np.inf,  np.inf]),
+    )
+
+    f, rx, ry, rz = res.x
     if f <= 0:
         return None, None, None, None
 
-    K    = np.array([[f, 0., cx], [0., f, cy], [0., 0., 1.]], dtype=np.float64)
+    K    = np.array([[f, 0., cx],
+                     [0., f, cy],
+                     [0., 0., 1.]], dtype=np.float64)
     rvec = np.array([[rx], [ry], [rz]], dtype=np.float64)
-    tvec = np.array([[tx], [ty], [tz]], dtype=np.float64)
+    tvec = tvec_fixed
 
     # ── Step 3: final inlier mask over all N points ───────────────────────
     proj_all, _ = cv2.projectPoints(
@@ -360,11 +347,10 @@ def align_image(
     xlim: tuple = None,
     ylim: tuple = None,
     dx: float = None,
-    camera_pos_local: np.ndarray = None,
     tide_height: float = 0.0,
 ) -> bool:
     """
-    Estimate per-image focal length and camera pose.
+    Estimate per-image focal length and camera pose (4-DOF: f + R, tvec=0).
 
     Always saves the image aligned to the reference frame to `aligned_path`.
     When rectify=True, additionally saves a north-up plan-view image to
@@ -372,20 +358,17 @@ def align_image(
 
     Parameters
     ----------
-    detected_2d      : dict mapping class_name → [kp_x, kp_y] in query pixels.
-    P_ref            : (3, 4) reference camera projection matrix.
-    ref_size         : (width, height) of the reference image — output warp size.
-    min_inliers      : minimum RANSAC inliers required.
-    aligned_path     : output path for the reference-aligned image.
-    rectify          : if True, also produce a plan-view image.
-    rectify_path     : output path for the plan-view image (required if rectify).
-    xlim             : (Emin, Emax) in local metres (required if rectify).
-    ylim             : (Nmin, Nmax) in local metres (required if rectify).
-    dx               : ground-sampling distance m/px (required if rectify).
-    camera_pos_local : (3,) camera centre in local (centroid-subtracted) world
-                       coords.  When provided, fixes the camera position and
-                       estimates only f + rotation (4-DOF), giving a more
-                       accurate focal length and thus plan-view scale.
+    detected_2d  : dict mapping class_name → [kp_x, kp_y] in query pixels.
+    P_ref        : (3, 4) reference camera projection matrix.
+    ref_size     : (width, height) of the reference image — output warp size.
+    min_inliers  : minimum RANSAC inliers required.
+    aligned_path : output path for the reference-aligned image.
+    rectify      : if True, also produce a plan-view image.
+    rectify_path : output path for the plan-view image (required if rectify).
+    xlim         : (Emin, Emax) in local metres (required if rectify).
+    ylim         : (Nmin, Nmax) in local metres (required if rectify).
+    dx           : ground-sampling distance m/px (required if rectify).
+    tide_height  : z-plane elevation in the camera-centred local frame (metres).
     """
     stem = Path(query_path).name
 
@@ -426,7 +409,6 @@ def align_image(
         src_2d, src_3d, (q_W, q_H),
         ransac_reproj_threshold=ransac_reproj_threshold,
         min_inliers=min_inliers,
-        camera_pos=camera_pos_local,
     )
 
     if K_query is None:
@@ -444,7 +426,7 @@ def align_image(
     print(
         f"  {stem}: f={K_query[0, 0]:.1f} px  "
         f"inliers={n_inliers}/{len(src_2d)}  "
-        f"tide={tide_height:.2f} m"
+        f"z'={tide_height:.2f} m"
     )
 
     # ── Build query projection matrix ────────────────────────────────────
@@ -564,39 +546,24 @@ def main():
     )
     print(f"Landmarks       : {class_names}")
 
-    # UTM eastings/northings are in the hundreds-of-thousands range.
-    # Subtract the XY centroid for numerical stability in the nonlinear solve.
-    # Z is left unchanged so z=0 still corresponds to the water surface.
-    # When the camera position is known, use it as the local origin so the
-    # coordinate frame matches the CoastSnap/CIRN convention (camera at origin).
-    # Otherwise fall back to the GCP centroid for numerical stability.
-    if camera_pos_utm is not None:
-        xy_origin = camera_pos_utm[:2].copy()
-        print(
-            f"UTM XY origin   : ({xy_origin[0]:.2f}, {xy_origin[1]:.2f})  "
-            f"(camera position — local frame centred at camera)"
-        )
-    else:
-        xy_origin = world_pts[:, :2].mean(axis=0)
-        print(
-            f"UTM XY origin   : ({xy_origin[0]:.2f}, {xy_origin[1]:.2f})  "
-            f"(GCP centroid — camera position not provided)"
-        )
+    # Shift the entire world so the camera centre is at the origin.
+    # This fixes tvec=0 and reduces unknowns from 7 to 4 (f + rvec).
+    if camera_pos_utm is None:
+        print("ERROR: camera_pos must be provided for fixed-centre (4-DOF) mode.")
+        sys.exit(1)
 
-    world_pts = world_pts.copy()
-    world_pts[:, :2] -= xy_origin
+    origin = camera_pos_utm.astype(np.float64)
+    print(
+        f"World origin    : camera centre (UTM/MSL) = "
+        f"({origin[0]:.2f}, {origin[1]:.2f}, {origin[2]:.2f})  "
+        f"→ local camera-centred frame"
+    )
 
-    if camera_pos_utm is not None:
-        camera_pos_local = camera_pos_utm.copy()
-        camera_pos_local[:2] -= xy_origin   # → (0, 0, Z_cam) by construction
-        print(
-            f"Camera position : UTM ({camera_pos_utm[0]:.2f}, {camera_pos_utm[1]:.2f}, {camera_pos_utm[2]:.2f})  "
-            f"→ local ({camera_pos_local[0]:.2f}, {camera_pos_local[1]:.2f}, {camera_pos_local[2]:.2f})  "
-            f"[4-DOF mode]"
-        )
-    else:
-        camera_pos_local = None
-        print("Camera position : not provided — using 7-DOF estimation")
+    world_pts = world_pts.astype(np.float64)
+    world_pts -= origin  # subtract full XYZ from every GCP
+
+    camera_pos_local = np.zeros(3, dtype=np.float64)  # camera is at origin by construction
+    print("Camera position : local (0.00, 0.00, 0.00)  [4-DOF fixed-centre mode]")
 
     if args.rectify:
         xlim_local = tuple(args.xlim)
@@ -616,7 +583,6 @@ def main():
         ref_image_pts, world_pts, ref_size,
         ransac_reproj_threshold=args.ransac_threshold,
         min_inliers=4,
-        camera_pos=camera_pos_local,
     )
     if K_ref is None:
         print("ERROR: could not estimate reference camera pose — too few inliers.")
@@ -685,10 +651,14 @@ def main():
                     utm_zone=args.utm_zone,
                     northern=args.northern,
                 )
-                print(f"  {stem}: tide height = {tide_height:.2f} m")
             except Exception as exc:
                 traceback.print_exc()
                 print(f"  {stem}: tide lookup failed ({exc}), defaulting to 0 m")
+
+        # Convert MSL tide height to camera-centred local frame
+        z_plane_local = tide_height - origin[2]
+        print(f"  {stem}: tide MSL={tide_height:.2f} m  → plane z'={z_plane_local:.2f} m (camera-centred)")
+
         # Detect 2D landmark locations in this image
         results = run_pipeline(
             img_path, yolo_model, kp_models, cfg, device,
@@ -713,8 +683,7 @@ def main():
             xlim=xlim_local,
             ylim=ylim_local,
             dx=args.dx,
-            camera_pos_local=camera_pos_local,
-            tide_height=tide_height,
+            tide_height=z_plane_local,
         )
         if success:
             n_success += 1
