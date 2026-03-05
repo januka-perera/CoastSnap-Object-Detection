@@ -108,7 +108,7 @@ def load_reference_keypoints(path: str):
     world_pts     = []
     ref_image_pts = []
     for cls, val in data.items():
-        if cls == "camera_pos":
+        if not isinstance(val, dict) or "world" not in val or "image" not in val:
             continue
         class_names.append(cls)
         world_pts.append(val["world"])
@@ -688,7 +688,6 @@ def main():
                 print(f"  {stem}: tide height = {tide_height:.2f} m")
             except Exception as exc:
                 print(f"  {stem}: tide lookup failed ({exc}), defaulting to 0 m")
-
         # Detect 2D landmark locations in this image
         results = run_pipeline(
             img_path, yolo_model, kp_models, cfg, device,
