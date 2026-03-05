@@ -383,7 +383,7 @@ def align_image(
             src_3d.append(world_pts[i])
             matched_cls.append(cls)
 
-    n_required = len(class_names)
+    n_required = 4 # Min required for homography
     if len(src_2d) < n_required:
         missing = [c for c in class_names if c not in detected_2d]
         print(
