@@ -20,7 +20,7 @@ Usage (CLI)
 """
 
 import json
-from datetime import datetime, UTC
+from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -33,11 +33,11 @@ from eo_tides.utils import clip_models
 # Configuration
 # ---------------------------------------------------------------------------
 
-TIDE_MODELS_DIR         = Path(r"C:\Users\z3551540\Code\Github\CoastSnap-Object-Detection\yolo-test\tide_models")
-TIDE_MODELS_CLIPPED_DIR = Path(r"C:\Users\z3551540\Code\Github\CoastSnap-Object-Detection\yolo-test\tide_models_clipped_2")
+TIDE_MODELS_DIR         = "/tide_models"
+TIDE_MODELS_CLIPPED_DIR = "/tide_models_clipped_2"
 CLIP_BBOX  = (144.7, -38.9, 152.7, -30.3)   # (lon_min, lat_min, lon_max, lat_max)
 TIDE_MODEL = "EOT20"
-
+OFFSET_M = 0.4
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -96,7 +96,7 @@ def get_tide_height(
     """
     # ── Parse timestamp from filename ────────────────────────────────────
     timestamp    = int(Path(image_name).name.split(".")[0])
-    capture_time = datetime.fromtimestamp(timestamp, UTC)
+    capture_time = datetime.fromtimestamp(timestamp, timezone.utc)
 
     # ── Convert UTM camera position to lat/lon ───────────────────────────
     camera_pos = _load_camera_pos_utm(keypoints_path)
@@ -111,7 +111,7 @@ def get_tide_height(
         model=model,
         directory=TIDE_MODELS_CLIPPED_DIR,
     )
-    return float(result["tide_height"].values[0].round(2))
+    return float(result["tide_height"].values[0].round(2)) + OFFSET_M
 
 
 # ---------------------------------------------------------------------------
@@ -144,6 +144,5 @@ if __name__ == "__main__":
         model=args.model,
     )
     print(f"Tide height: {height} m")
-
 
 
