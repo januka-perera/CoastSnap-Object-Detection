@@ -224,7 +224,7 @@ def estimate_camera_pose(
             _residuals, x0,
             method="trf",
             loss="soft_l1",
-            f_scale=10.0,
+            f_scale=ransac_reproj_threshold,  # px threshold — scales with image resolution
             bounds=([f_lo, -np.inf, -np.inf, -np.inf],
                     [f_hi,  np.inf,  np.inf,  np.inf]),
         )
