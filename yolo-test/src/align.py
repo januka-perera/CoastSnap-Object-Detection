@@ -159,7 +159,10 @@ def estimate_camera_pose(
     pts_3d = world_pts.astype(np.float64).reshape(-1, 1, 3)
     pts_2d = image_pts.astype(np.float64).reshape(-1, 1, 2)
 
-    # ── Step 1: RANSAC bootstrap (gets a decent rvec) ────────────────────
+    # ── Step 1: RANSAC bootstrap (inlier set under free-tvec model) ──────
+    # Use a loosened reprojection threshold so the RANSAC inlier set is not
+    # overly specific to the free-tvec solution.  The constrained refinement
+    # and final inlier recount (Step 3) tighten it back to the real threshold.
     f_init = float(max(W, H))
     K_init = np.array([[f_init, 0., cx],
                        [0., f_init, cy],
@@ -167,7 +170,7 @@ def estimate_camera_pose(
 
     ok, rvec0, tvec0, inliers0 = cv2.solvePnPRansac(
         pts_3d, pts_2d, K_init, None,
-        reprojectionError=ransac_reproj_threshold,
+        reprojectionError=ransac_reproj_threshold * 3,  # loose; tightened in Step 3
         confidence=0.99,
         iterationsCount=2000,
     )
@@ -178,33 +181,57 @@ def estimate_camera_pose(
     pts_3d_in = world_pts[inlier_idx].astype(np.float64)
     pts_2d_in = image_pts[inlier_idx].astype(np.float64)
 
-    # ── Step 2: refine f + rvec with tvec fixed to 0 ─────────────────────
+    # ── Step 2a: pre-warm rvec for tvec=0 (rvec only, f fixed) ──────────
+    # rvec0 was found with free tvec, so it is a poor starting point when
+    # tvec is fixed to 0.  A quick 3-DOF LM pass nudges rvec onto the
+    # tvec=0 manifold.  Fall back to rvec0 if the warm-start diverges.
     tvec_fixed = np.zeros((3, 1), dtype=np.float64)
+
+    def _res_rvec(r):
+        proj, _ = cv2.projectPoints(
+            pts_3d_in.reshape(-1, 1, 3),
+            r.reshape(3, 1), tvec_fixed, K_init, None,
+        )
+        return (proj.reshape(-1, 2) - pts_2d_in).ravel()
+
+    warm = _lsq(_res_rvec, rvec0.ravel(), method="lm")
+    rvec_warm = warm.x if warm.success else rvec0.ravel()
+
+    # ── Step 2b: focal grid + 4-DOF refine, pick best ────────────────────
+    # f and rvec are coupled; multiple f starting points escape local minima.
+    # Robust soft_l1 loss guards against any remaining outliers in the
+    # RANSAC inlier set (which was selected under the free-tvec model).
+    f_lo = 0.5 * max(W, H)
+    f_hi = 5.0 * max(W, H)
 
     def _residuals(x):
         f, rx, ry, rz = x
         K_ = np.array([[f, 0., cx],
                        [0., f, cy],
                        [0., 0., 1.]], dtype=np.float64)
-        rvec = np.array([[rx], [ry], [rz]], dtype=np.float64)
+        rv = np.array([[rx], [ry], [rz]], dtype=np.float64)
         proj, _ = cv2.projectPoints(
-            pts_3d_in.reshape(-1, 1, 3), rvec, tvec_fixed, K_, None
+            pts_3d_in.reshape(-1, 1, 3), rv, tvec_fixed, K_, None
         )
         return (proj.reshape(-1, 2) - pts_2d_in).ravel()
 
-    x0 = np.array([f_init, *rvec0.ravel()], dtype=np.float64)
-
-    f_lo = 0.5 * max(W, H)
-    f_hi = 5.0 * max(W, H)
-
-    res = _lsq(
-        _residuals, x0,
-        method="trf",
-        loss="soft_l1",
-        f_scale=5.0,
-        bounds=([f_lo, -np.inf, -np.inf, -np.inf],
-                [f_hi,  np.inf,  np.inf,  np.inf]),
-    )
+    best_res = None
+    best_cost = np.inf
+    for f_mult in (0.7, 1.0, 1.5, 2.5):
+        f_start = np.clip(f_mult * max(W, H), f_lo, f_hi)
+        x0 = np.array([f_start, *rvec_warm], dtype=np.float64)
+        res_try = _lsq(
+            _residuals, x0,
+            method="trf",
+            loss="soft_l1",
+            f_scale=10.0,
+            bounds=([f_lo, -np.inf, -np.inf, -np.inf],
+                    [f_hi,  np.inf,  np.inf,  np.inf]),
+        )
+        if res_try.cost < best_cost:
+            best_cost = res_try.cost
+            best_res = res_try
+    res = best_res
 
     f, rx, ry, rz = res.x
     if f <= 0:
@@ -383,11 +410,10 @@ def align_image(
             src_3d.append(world_pts[i])
             matched_cls.append(cls)
 
-    n_required = len(class_names)
-    if len(src_2d) < n_required:
+    if len(src_2d) < min_inliers:
         missing = [c for c in class_names if c not in detected_2d]
         print(
-            f"  [SKIP] {stem}: {len(src_2d)}/{n_required} landmarks detected "
+            f"  [SKIP] {stem}: only {len(src_2d)}/{len(class_names)} landmarks detected "
             f"— missing {missing}"
         )
         return False
