@@ -65,7 +65,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 import torch
-
+import traceback
 sys.path.insert(0, str(Path(__file__).parent))
 
 from predict import (
@@ -687,6 +687,7 @@ def main():
                 )
                 print(f"  {stem}: tide height = {tide_height:.2f} m")
             except Exception as exc:
+                traceback.print_exc()
                 print(f"  {stem}: tide lookup failed ({exc}), defaulting to 0 m")
         # Detect 2D landmark locations in this image
         results = run_pipeline(
