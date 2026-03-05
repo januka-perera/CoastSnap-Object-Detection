@@ -33,8 +33,8 @@ from eo_tides.utils import clip_models
 # Configuration
 # ---------------------------------------------------------------------------
 
-TIDE_MODELS_DIR         = Path("/tide_models")
-TIDE_MODELS_CLIPPED_DIR = Path("/tide_models_clipped_2")
+TIDE_MODELS_DIR         = "/tide_models"
+TIDE_MODELS_CLIPPED_DIR = "/tide_models_clipped_2"
 CLIP_BBOX  = (144.7, -38.9, 152.7, -30.3)   # (lon_min, lat_min, lon_max, lat_max)
 TIDE_MODEL = "EOT20"
 OFFSET_M = 0.4
