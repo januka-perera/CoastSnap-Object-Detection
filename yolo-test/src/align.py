@@ -159,6 +159,12 @@ def estimate_camera_pose(
     pts_3d = world_pts.astype(np.float64).reshape(-1, 1, 3)
     pts_2d = image_pts.astype(np.float64).reshape(-1, 1, 2)
 
+    # Resolution-scaled inlier threshold (px)
+    thr = max(ransac_reproj_threshold, 0.006 * max(W, H))   # 0.6% of long edge
+    thr = float(np.clip(thr, 6.0, 60.0))                   # clamp
+
+
+
     # ── Step 1: RANSAC bootstrap (gets a decent rvec) ────────────────────
     f_init = float(max(W, H))
     K_init = np.array([[f_init, 0., cx],
@@ -167,7 +173,7 @@ def estimate_camera_pose(
 
     ok, rvec0, tvec0, inliers0 = cv2.solvePnPRansac(
         pts_3d, pts_2d, K_init, None,
-        reprojectionError=ransac_reproj_threshold,
+        reprojectionError=thr,
         confidence=0.99,
         iterationsCount=2000,
     )
@@ -201,7 +207,7 @@ def estimate_camera_pose(
         _residuals, x0,
         method="trf",
         loss="soft_l1",
-        f_scale=5.0,
+        f_scale=thr,
         bounds=([f_lo, -np.inf, -np.inf, -np.inf],
                 [f_hi,  np.inf,  np.inf,  np.inf]),
     )
@@ -221,7 +227,7 @@ def estimate_camera_pose(
         world_pts.astype(np.float64).reshape(-1, 1, 3), rvec, tvec, K, None
     )
     errors      = np.linalg.norm(proj_all.reshape(-1, 2) - image_pts, axis=1)
-    inlier_mask = errors < ransac_reproj_threshold
+    inlier_mask = errors < thr
 
     return K, rvec, tvec, inlier_mask
 
