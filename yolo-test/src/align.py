@@ -168,14 +168,22 @@ def estimate_camera_pose(
                        [0., f_init, cy],
                        [0., 0., 1.]], dtype=np.float64)
 
-    ok, rvec0, tvec0, inliers0 = cv2.solvePnPRansac(
-        pts_3d, pts_2d, K_init, None,
-        reprojectionError=ransac_reproj_threshold * 3,  # loose; tightened in Step 3
-        confidence=0.99,
-        iterationsCount=10000,  # small N → sample many minimal sets
-        flags=cv2.SOLVEPNP_AP3P,  # robust minimal solver for N≥4
-    )
-    if not ok or inliers0 is None or len(inliers0) < min_inliers:
+    # Try solvers in order; AP3P is best for small N but can be degenerate for
+    # certain point configurations.  Fall back to EPNP then the default.
+    rvec0 = tvec0 = inliers0 = None
+    for _flags in (cv2.SOLVEPNP_AP3P, cv2.SOLVEPNP_EPNP, 0):
+        ok, _rv, _tv, _inl = cv2.solvePnPRansac(
+            pts_3d, pts_2d, K_init, None,
+            reprojectionError=ransac_reproj_threshold * 3,  # loose; tightened in Step 3
+            confidence=0.99,
+            iterationsCount=10000,  # small N → sample many minimal sets
+            flags=_flags,
+        )
+        if ok and _inl is not None and len(_inl) >= min_inliers:
+            rvec0, tvec0, inliers0 = _rv, _tv, _inl
+            break
+
+    if inliers0 is None:
         return None, None, None, None
 
     inlier_idx = inliers0.ravel()
