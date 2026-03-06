@@ -30,7 +30,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 import rasterio
-from rasterio.enums import Resampling
+from rasterio.enums import Resampling, ColorInterp
 from rasterio.transform import from_origin
 import rasterio.shutil
 
@@ -80,29 +80,40 @@ def build_transform(
 # Writers
 # ---------------------------------------------------------------------------
 
-def write_geotiff(
-    img_bgr: np.ndarray,
-    output_path: str,
-    transform,
-    epsg: int,
-) -> None:
-    """Write a BGR image as a georeferenced GeoTIFF (RGB band order)."""
+def write_geotiff(img_bgr: np.ndarray, output_path: str, transform, epsg: int) -> None:
     img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
     height, width, bands = img_rgb.shape
+    if bands != 3:
+        raise ValueError(f"Expected 3-band RGB, got {bands}")
+
+    # Alpha: 255 where any channel is non-zero, else 0
+    valid = np.any(img_rgb != 0, axis=2).astype(np.uint8)
+    alpha = (valid * 255).astype(np.uint8)
 
     profile = {
-        "driver":    "GTiff",
-        "dtype":     "uint8",
-        "width":     width,
-        "height":    height,
-        "count":     bands,
-        "crs":       f"EPSG:{epsg}",
+        "driver": "GTiff",
+        "dtype": "uint8",
+        "width": width,
+        "height": height,
+        "count": 4,  # RGB + alpha
+        "crs": f"EPSG:{epsg}",
         "transform": transform,
+        "photometric": "RGB",
+        "interleave": "pixel",
     }
 
     with rasterio.open(output_path, "w", **profile) as dst:
-        for i in range(bands):
-            dst.write(img_rgb[:, :, i], i + 1)
+        dst.write(img_rgb[:, :, 0], 1)
+        dst.write(img_rgb[:, :, 1], 2)
+        dst.write(img_rgb[:, :, 2], 3)
+        dst.write(alpha, 4)
+
+        dst.colorinterp = (
+            ColorInterp.red,
+            ColorInterp.green,
+            ColorInterp.blue,
+            ColorInterp.alpha,
+        )
 
 
 def write_cog(
@@ -113,54 +124,59 @@ def write_cog(
     overview_levels: list = None,
     blocksize: int = 512,
 ) -> None:
-    """Write a BGR image as a Cloud Optimized GeoTIFF.
-
-    Strategy
-    --------
-    1. Write a regular GeoTIFF to a temp file.
-    2. Build overview pyramids (for efficient zoom-out rendering).
-    3. Copy to the final path with tiled layout and deflate compression —
-       the combination that satisfies the COG spec.
-    """
     if overview_levels is None:
         overview_levels = [2, 4, 8, 16, 32]
 
     img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
     height, width, bands = img_rgb.shape
+    if bands != 3:
+        raise ValueError(f"Expected 3-band RGB, got {bands}")
+
+    valid = np.any(img_rgb != 0, axis=2).astype(np.uint8)
+    alpha = (valid * 255).astype(np.uint8)
 
     profile = {
-        "driver":    "GTiff",
-        "dtype":     "uint8",
-        "width":     width,
-        "height":    height,
-        "count":     bands,
-        "crs":       f"EPSG:{epsg}",
+        "driver": "GTiff",
+        "dtype": "uint8",
+        "width": width,
+        "height": height,
+        "count": 4,
+        "crs": f"EPSG:{epsg}",
         "transform": transform,
+        "photometric": "RGB",
+        "interleave": "pixel",
     }
 
     tmp_fd, tmp_path = tempfile.mkstemp(suffix=".tif")
     os.close(tmp_fd)
 
     try:
-        # Step 1: write to temp
         with rasterio.open(tmp_path, "w", **profile) as dst:
-            for i in range(bands):
-                dst.write(img_rgb[:, :, i], i + 1)
+            dst.write(img_rgb[:, :, 0], 1)
+            dst.write(img_rgb[:, :, 1], 2)
+            dst.write(img_rgb[:, :, 2], 3)
+            dst.write(alpha, 4)
+            dst.colorinterp = (
+                ColorInterp.red,
+                ColorInterp.green,
+                ColorInterp.blue,
+                ColorInterp.alpha,
+            )
 
-        # Step 2: build overviews in-place
         with rasterio.open(tmp_path, "r+") as dst:
             dst.build_overviews(overview_levels, Resampling.average)
             dst.update_tags(ns="rio_overview", resampling="average")
 
-        # Step 3: copy as tiled COG
         cog_profile = profile.copy()
         cog_profile.update({
-            "tiled":              True,
-            "blockxsize":         blocksize,
-            "blockysize":         blocksize,
-            "compress":           "deflate",
+            "tiled": True,
+            "blockxsize": blocksize,
+            "blockysize": blocksize,
+            "compress": "deflate",
+            "predictor": 2,
             "copy_src_overviews": True,
         })
+
         with rasterio.open(tmp_path) as src:
             rasterio.shutil.copy(src, output_path, **cog_profile)
 
