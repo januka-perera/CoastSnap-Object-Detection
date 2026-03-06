@@ -9,3 +9,6 @@ scipy>=1.10.0
 rasterio
 eo-tides
 utm
+pystac
+flask 
+flask-cors
