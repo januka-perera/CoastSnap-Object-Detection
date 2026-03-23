@@ -398,6 +398,7 @@ def align_image(
     ylim: tuple = None,
     dx: float = None,
     tide_height: float = 0.0,
+    homography_dir : str = None,
 ) -> bool:
     """
     Estimate per-image focal length and camera pose (4-DOF: f + R, tvec=0).
@@ -481,6 +482,11 @@ def align_image(
 
     # ── Build query projection matrix ────────────────────────────────────
     P_query = projection_matrix(K_query, rvec, tvec)
+
+   if homography_dir is not None and xlim is not None and ylim is not None and dx is not None:
+        H_plan = plan_to_oblique_homography(P_query, xlim, ylim, dx, z=tide_height)
+        H_path = Path(homography_dir) / f"{stem}_H_plan_to_oblique.npy"
+        np.save(str(H_path), H_plan)
 
     # ── Align to reference frame (always) ────────────────────────────────
     # P_ref and P_query are both expressed in their own image coordinate
@@ -566,6 +572,9 @@ def main():
                         help="Set if the site is in the northern hemisphere "
                              "(used for tide height lookup).")
 
+    parser.add_argument("--homography-dir", default="./homographies",
+                        help="Output directory for per-image plan-to-oblique homographies.")
+
     args = parser.parse_args()
 
     if args.rectify:
@@ -591,7 +600,7 @@ def main():
     print(f"Reference image : {args.reference}  ({ref_W_px}×{ref_H_px})")
 
     # ── Reference keypoints ───────────────────────────────────────────────
-    class_names, world_pts, ref_image_pts, camera_pos_utm = load_reference_keypoints(
+    class_names, world_pts, ref_image_pts, camera_pos_utm, xlim_json, ylim_json, dx_json = load_reference_keypoints(
         args.reference_keypoints
     )
     print(f"Landmarks       : {class_names}")
@@ -677,6 +686,15 @@ def main():
     aligned_dir   = Path(args.output_dir)
     rectified_dir = Path(args.rectify_dir)
     aligned_dir.mkdir(parents=True, exist_ok=True)
+
+    homography_dir = Path(args.homography_dir)
+    homography_dir.mkdir(parents=True, exist_ok=True)
+
+    xlim_local = tuple(args.xlim)    if args.xlim else (tuple(xlim_json) if xlim_json else None)
+    ylim_local = tuple(args.ylim)    if args.ylim else (tuple(ylim_json) if ylim_json else None)
+    dx_val     = args.dx             if args.dx   else dx_json
+
+   
     if args.rectify:
         rectified_dir.mkdir(parents=True, exist_ok=True)
 
@@ -732,7 +750,8 @@ def main():
             rectify_path=rectify_path,
             xlim=xlim_local,
             ylim=ylim_local,
-            dx=args.dx,
+            dx=dx_val,
+            homography_dir = str(homography_dir)
             tide_height=z_plane_local,
         )
         if success:
