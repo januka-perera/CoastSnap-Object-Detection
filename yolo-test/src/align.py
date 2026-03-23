@@ -626,12 +626,12 @@ def main():
         ylim_local = tuple(args.ylim) if args.ylim else None
 
         if xlim_local is not None and ylim_local is not None:
-        print(
-            f"Plan-view extents (local): "
-            f"X=[{xlim_local[0]:.1f}, {xlim_local[1]:.1f}]  "
-            f"Y=[{ylim_local[0]:.1f}, {ylim_local[1]:.1f}]  "
-            f"dx={args.dx} m/px"
-        )
+           print(
+               f"Plan-view extents (local): "
+               f"X=[{xlim_local[0]:.1f}, {xlim_local[1]:.1f}]  "
+               f"Y=[{ylim_local[0]:.1f}, {ylim_local[1]:.1f}]  "
+               f"dx={args.dx} m/px"
+           )
   
 
     # ── Estimate reference camera pose ────────────────────────────────────
