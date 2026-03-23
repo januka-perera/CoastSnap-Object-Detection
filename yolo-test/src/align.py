@@ -578,7 +578,7 @@ def main():
     args = parser.parse_args()
 
     if args.rectify:
-        if args.xlim is None or args.ylim is None or args.dx is None:
+        if xlim_local is None or ylim_local is None or args.dx is None:
             parser.error("--rectify requires --xlim, --ylim, and --dx.")
 
     if args.kp_weights is None and args.kp_weights_dir is None:
