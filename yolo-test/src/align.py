@@ -115,9 +115,9 @@ def load_reference_keypoints(path: str):
         world_pts.append(val["world"])
         ref_image_pts.append(val["image"])
 
-   xlim = data.get("xlim", None)    
-   ylim = data.get("ylim", None)
-   dx = data.get("dx", None)
+    xlim = data.get("xlim", None)    
+    ylim = data.get("ylim", None)
+    dx = data.get("dx", None)
 
    
 
@@ -147,8 +147,7 @@ def plan_to_oblique_homography(
 
    # B: world X,Y on plane z to oblique homogenous coords
 
-   B = np.column_stack([P[:, 0], P[:, 1], P[:, 2] * z + P[:,    
-  3]])
+   B = np.column_stack([P[:, 0], P[:, 1], P[:, 2] * z + P[:, 3]])
 
    # M: plan pixel (c, r, 1) to world (X, Y, 1)
 
@@ -483,9 +482,9 @@ def align_image(
     # ── Build query projection matrix ────────────────────────────────────
     P_query = projection_matrix(K_query, rvec, tvec)
 
-   if homography_dir is not None and xlim is not None and ylim is not None and dx is not None:
+    if homography_dir is not None and xlim is not None and ylim is not None and dx is not None:
         H_plan = plan_to_oblique_homography(P_query, xlim, ylim, dx, z=tide_height)
-        H_path = Path(homography_dir) / f"{stem}_H_plan_to_oblique.npy"
+        H_path = Path(homography_dir) / f"{Path(query_path).stem}_H_plan_to_oblique.npy"
         np.save(str(H_path), H_plan)
 
     # ── Align to reference frame (always) ────────────────────────────────
@@ -577,9 +576,7 @@ def main():
 
     args = parser.parse_args()
 
-    if args.rectify:
-        if xlim_local is None or ylim_local is None or args.dx is None:
-            parser.error("--rectify requires --xlim, --ylim, and --dx.")
+    
 
     if args.kp_weights is None and args.kp_weights_dir is None:
         parser.error("Provide --kp-weights (single model) or --kp-weights-dir (per-class).")
@@ -635,6 +632,10 @@ def main():
         )
     else:
         xlim_local = ylim_local = None
+
+    if args.rectify:
+        if xlim_local is None or ylim_local is None or args.dx is None:
+            parser.error("--rectify requires --xlim, --ylim, and --dx (or these fields in reference.json).")
 
     # ── Estimate reference camera pose ────────────────────────────────────
     print("\nEstimating reference camera pose…")
@@ -751,7 +752,7 @@ def main():
             xlim=xlim_local,
             ylim=ylim_local,
             dx=dx_val,
-            homography_dir = str(homography_dir)
+            homography_dir = str(homography_dir),
             tide_height=z_plane_local,
         )
         if success:
