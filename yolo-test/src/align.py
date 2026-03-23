@@ -485,7 +485,9 @@ def align_image(
     if homography_dir is not None and xlim is not None and ylim is not None and dx is not None:
         H_plan = plan_to_oblique_homography(P_query, xlim, ylim, dx, z=tide_height)
         H_path = Path(homography_dir) / f"{Path(query_path).stem}_H_plan_to_oblique.npy"
+        P_path = Path(homography_dir) / f"{Path(query_path).stem}_P.npy"
         np.save(str(H_path), H_plan)
+        np.save(str(P_path), P_query)
 
     # ── Align to reference frame (always) ────────────────────────────────
     # P_ref and P_query are both expressed in their own image coordinate
