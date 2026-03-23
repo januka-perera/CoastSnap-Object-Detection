@@ -132,6 +132,41 @@ def load_reference_keypoints(path: str):
     )
 
 
+def plan_to_oblique_homography(
+   P : np.ndarray,
+   xlim : tuple,
+   ylim : tuple, 
+   dx : float, 
+   z : float = 0.0
+) -> np.ndarray:
+
+   """
+   Homograpy from plan view to oblique image
+   
+   """
+
+   # B: world X,Y on plane z to oblique homogenous coords
+
+   B = np.column_stack([P[:, 0], P[:, 1], P[:, 2] * z + P[:,    
+  3]])
+
+   # M: plan pixel (c, r, 1) to world (X, Y, 1)
+
+   M = np.array([                                               
+          [dx,   0,  xlim[0]],                                     
+          [ 0, -dx,  ylim[1]],                                     
+          [ 0,   0,       1.],], dtype=np.float64)
+
+   H = B @ M
+
+   H /= H[2,2]
+
+   return H
+
+ 
+   
+
+
 # ---------------------------------------------------------------------------
 # Per-image camera pose estimation (f + R + t)
 # ---------------------------------------------------------------------------
