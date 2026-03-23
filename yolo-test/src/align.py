@@ -115,11 +115,20 @@ def load_reference_keypoints(path: str):
         world_pts.append(val["world"])
         ref_image_pts.append(val["image"])
 
+   xlim = data.get("xlim", None)    
+   ylim = data.get("ylim", None)
+   dx = data.get("dx", None)
+
+   
+
     return (
         class_names,
         np.array(world_pts,     dtype=np.float32),
         np.array(ref_image_pts, dtype=np.float32),
         camera_pos_utm,
+        xlim,
+        ylim, 
+        dx, 
     )
 
 
